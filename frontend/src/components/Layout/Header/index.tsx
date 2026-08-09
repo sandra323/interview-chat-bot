@@ -62,7 +62,9 @@ export default function Header({
 
         <div className={styles.titleBlock}>
           {title ? (
-            <p className={styles.title}>{title}</p>
+            <p className={styles.title} title={title}>
+              {title}
+            </p>
           ) : (
             <p className={styles.titleMuted}>新建对话</p>
           )}

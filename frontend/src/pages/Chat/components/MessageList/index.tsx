@@ -1,4 +1,10 @@
-import { useCallback, useEffect, useState, type RefObject } from 'react';
+import {
+  useCallback,
+  useEffect,
+  useRef,
+  useState,
+  type RefObject,
+} from 'react';
 import { Button } from 'antd';
 import type { Message } from '@ai-chat/shared';
 import CatBotIcon from '@/components/CatBotIcon';
@@ -7,6 +13,8 @@ import { isNearBottom, scrollToBottom } from '@/utils/scrollHelper';
 import MessageBubble from '../MessageBubble';
 import TypingIndicator from '../TypingIndicator';
 import styles from './index.module.less';
+
+const STICK_THRESHOLD_PX = 30;
 
 interface MessageListProps {
   messages: Message[];
@@ -25,20 +33,26 @@ export default function MessageList({
   scrollContainerRef,
 }: MessageListProps) {
   const [showScrollBtn, setShowScrollBtn] = useState(false);
+  const stickToBottomRef = useRef(true);
 
   const handleScroll = useCallback(() => {
     const container = scrollContainerRef.current;
     if (!container) return;
-    setShowScrollBtn(!isNearBottom(container));
+    const nearBottom = isNearBottom(container, STICK_THRESHOLD_PX);
+    stickToBottomRef.current = nearBottom;
+    setShowScrollBtn(!nearBottom);
   }, [scrollContainerRef]);
 
   useEffect(() => {
     const container = scrollContainerRef.current;
     if (!container) return;
 
-    if (isNearBottom(container) || messages.length <= 1) {
-      scrollToBottom(container);
-      setShowScrollBtn(false);
+    if (stickToBottomRef.current || messages.length <= 1) {
+      requestAnimationFrame(() => {
+        scrollToBottom(container);
+        stickToBottomRef.current = true;
+        setShowScrollBtn(false);
+      });
     }
   }, [messages, loading, scrollContainerRef]);
 
@@ -46,6 +60,7 @@ export default function MessageList({
     const container = scrollContainerRef.current;
     if (container) {
       scrollToBottom(container);
+      stickToBottomRef.current = true;
       setShowScrollBtn(false);
     }
   };

@@ -4,13 +4,14 @@ import { createServer, type Server } from 'http';
 import { WebSocketServer } from 'ws';
 import { ConnectionManager } from './websocket/connectionManager.js';
 import { handleMessage } from './websocket/handleMessage.js';
+import { GenerationRunner } from './generation/generationRunner.js';
+import { getChatStore } from './store/chatStore.js';
 import { logger } from './utils/logger.js';
 import type { ServerEnv } from './config/env.js';
 
 export function createApp(env: ServerEnv): express.Application {
   const app = express();
 
-  // Dev: reflect request origin if unset. Prod: require explicit CORS_ORIGIN.
   const corsOptions =
     env.nodeEnv === 'production'
       ? {
@@ -42,10 +43,15 @@ export function attachWebSocketServer(server: Server): WebSocketServer {
   const wss = new WebSocketServer({
     server,
     path: '/ws',
-    // Chat frames are text-only now; keep payload small
     maxPayload: 64 * 1024,
   });
   const connectionManager = new ConnectionManager();
+  const store = getChatStore();
+  const orphaned = store.failOrphanedRunningGenerations();
+  if (orphaned > 0) {
+    logger.info('Marked orphaned generations as error', { count: orphaned });
+  }
+  const runner = new GenerationRunner(store, connectionManager);
 
   wss.on('connection', (ws) => {
     const connection = connectionManager.addConnection(ws);
@@ -61,7 +67,7 @@ export function attachWebSocketServer(server: Server): WebSocketServer {
     ws.on('message', async (data) => {
       try {
         const raw = data.toString();
-        await handleMessage(raw, connection, connectionManager);
+        await handleMessage(raw, connection, connectionManager, runner);
       } catch (error) {
         logger.error('Unhandled message handler error', {
           connectionId: connection.connectionId,
@@ -81,7 +87,9 @@ export function attachWebSocketServer(server: Server): WebSocketServer {
 
     ws.on('close', () => {
       connectionManager.removeConnection(connection.connectionId);
-      logger.info('Connection closed', { connectionId: connection.connectionId });
+      logger.info('Connection closed', {
+        connectionId: connection.connectionId,
+      });
     });
 
     ws.on('error', (error) => {
@@ -105,6 +113,12 @@ export function setupGracefulShutdown(
     wss.clients.forEach((client) => {
       client.close();
     });
+
+    try {
+      getChatStore().close();
+    } catch {
+      // ignore
+    }
 
     server.close(() => {
       logger.info('Server closed');

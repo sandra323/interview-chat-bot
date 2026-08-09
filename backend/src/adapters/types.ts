@@ -11,16 +11,15 @@ export class LLMAdapterError extends Error {
 }
 
 /**
- * Optional chat options — shaped for Phase 2 without enabling stream yet.
+ * Optional chat options.
  * - timeoutMs: longer windows for pro / thinking models
  * - extraBody: vendor fields (e.g. DeepSeek thinking)
- * - stream: reserved; use chatStream() when implemented
+ * - signal: external abort (user stop); combined with idle timeout
  */
 export interface ChatRequestOptions {
   timeoutMs?: number;
   extraBody?: Record<string, unknown>;
-  /** Reserved for Phase 2 — adapters may ignore until streaming ships. */
-  stream?: boolean;
+  signal?: AbortSignal;
 }
 
 export interface LLMAdapter {
@@ -30,11 +29,7 @@ export interface LLMAdapter {
     options?: ChatRequestOptions,
   ): Promise<string>;
 
-  /**
-   * Phase 2: streaming tokens. Optional so existing adapters stay valid.
-   * Implement as AsyncGenerator / readable stream consumer later.
-   */
-  chatStream?(
+  chatStream(
     messages: Array<{ role: 'user' | 'assistant' | 'system'; content: string }>,
     config: { apiUrl: string; apiKey: string; model: string },
     options?: ChatRequestOptions,

@@ -1,6 +1,6 @@
 export function isNearBottom(
   container: HTMLElement,
-  threshold = 80,
+  threshold = 30,
 ): boolean {
   const { scrollTop, scrollHeight, clientHeight } = container;
   return scrollHeight - scrollTop - clientHeight < threshold;

@@ -5,6 +5,7 @@ describe('useChatStore', () => {
   beforeEach(() => {
     useChatStore.setState({
       messages: [],
+      conversationId: null,
       model: 'deepseek-v4-flash',
       ui: { loading: false, error: null, connectionStatus: 'closed' },
       _hasHydrated: true,

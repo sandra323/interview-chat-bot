@@ -80,21 +80,59 @@
 
 .markdown {
   font-size: 14px;
+  line-height: 1.625;
+  color: #e2e8f0;
+  word-break: break-word;
 }
 
-.paragraph {
-  margin: 0;
+.streaming {
+  position: relative;
+}
+
+.pendingHint {
   font-size: 14px;
-  line-height: 1.625;
+  color: var(--color-text-quaternary);
+}
+
+/* Streamdown root uses whitespace-normal; keep prose readable */
+.streamdown {
   color: #e2e8f0;
 }
 
-.strong {
+.streamdown :global(p) {
+  margin: 0 0 0.5em;
+}
+
+.streamdown :global(p:last-child) {
+  margin-bottom: 0;
+}
+
+.streamdown :global(strong) {
   font-weight: 600;
   color: #67e8f9;
 }
 
-.inlineCode {
+.streamdown :global(ul),
+.streamdown :global(ol) {
+  margin: 0.5em 0;
+  padding-left: 1.25rem;
+  color: #cbd5e1;
+}
+
+.streamdown :global(li) {
+  margin: 0.15em 0;
+}
+
+.streamdown :global(h1),
+.streamdown :global(h2),
+.streamdown :global(h3) {
+  margin: 0.75em 0 0.35em;
+  font-weight: 600;
+  color: #f1f5f9;
+}
+
+/* Inline code */
+.streamdown :global([data-streamdown='inline-code']) {
   font-family: var(--font-mono);
   font-size: 12px;
   background: rgba(255, 255, 255, 0.1);
@@ -103,44 +141,80 @@
   color: #6ee7b7;
 }
 
-.codeBlock {
+/* Fenced code block shell (Streamdown unwraps <pre> into this structure) */
+.streamdown :global([data-streamdown='code-block']) {
   margin: 12px 0;
   border-radius: var(--radius-lg);
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  background: rgba(15, 23, 42, 0.85);
   overflow: hidden;
-  border: 1px solid rgba(255, 255, 255, 0.1);
 }
 
-.codeLang {
-  padding: 8px 16px;
+.streamdown :global([data-streamdown='code-block'] > div:first-child) {
+  display: flex;
+  align-items: center;
+  height: 22px;
+  min-height: 22px;
+  max-height: 22px;
+  padding: 0 10px;
   font-family: var(--font-mono);
-  font-size: 12px;
-  text-transform: uppercase;
-  letter-spacing: 0.08em;
-  color: rgba(6, 182, 212, 0.7);
-  background: rgba(255, 255, 255, 0.05);
-  border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  text-transform: lowercase;
+  color: rgba(6, 182, 212, 0.75);
+  background: rgba(255, 255, 255, 0.04);
+  border-bottom: 1px solid rgba(255, 255, 255, 0.08);
 }
 
-.codePre {
+.streamdown :global([data-streamdown='code-block-body']) {
   margin: 0;
-  padding: 16px;
+  padding: 12px 14px;
   overflow-x: auto;
+  border: none;
+  border-radius: 0;
+  background: transparent;
   font-size: 12px;
-  line-height: 1.625;
+  line-height: 1.65;
+}
+
+.streamdown :global([data-streamdown='code-block-body'] pre) {
+  margin: 0;
+  padding: 0;
+  background: transparent;
+  border: none;
+  overflow: visible;
+  white-space: pre;
   font-family: var(--font-mono);
-  color: rgba(167, 243, 208, 0.9);
+  color: rgba(167, 243, 208, 0.95);
 }
 
-.listItem {
-  margin-left: 16px;
-  font-size: 14px;
-  line-height: 1.625;
-  color: #cbd5e1;
-  list-style: disc;
+.streamdown :global([data-streamdown='code-block-body'] code) {
+  display: block;
+  font-family: var(--font-mono);
+  font-size: 12px;
+  line-height: 1.65;
+  white-space: pre;
+  background: transparent;
+  padding: 0;
+  color: inherit;
 }
 
-.spacer {
-  height: 4px;
+/* Each tokenized line must stay on its own row */
+.streamdown :global([data-streamdown='code-block-body'] code > span) {
+  display: block;
+  min-height: 1.65em;
+  white-space: pre;
+}
+
+.cursor {
+  display: inline-block;
+  width: 2px;
+  height: 1em;
+  margin-left: 2px;
+  vertical-align: text-bottom;
+  background: var(--color-accent);
+  animation: blink 1s step-end infinite;
 }
 
 .actions {
@@ -160,4 +234,21 @@
 .actions :global(.ant-btn:hover) {
   color: #cbd5e1 !important;
   background: transparent !important;
+}
+
+@keyframes blink {
+  50% {
+    opacity: 0;
+  }
+}
+
+@keyframes fadeSlideIn {
+  from {
+    opacity: 0;
+    transform: translateY(6px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
 }

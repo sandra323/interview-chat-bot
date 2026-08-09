@@ -1,36 +1,43 @@
 import { useCallback, useState } from 'react';
 import { Button, Input } from 'antd';
-import { SendOutlined } from '@ant-design/icons';
+import { SendOutlined, StopOutlined } from '@ant-design/icons';
 import { isValidMessage } from '@/utils/validators';
 import styles from './index.module.less';
 
 interface ChatInputProps {
   onSend: (text: string) => boolean;
+  onStop?: () => void;
   disabled: boolean;
-  loading?: boolean;
+  /** True while waiting for reply_start or streaming */
+  isGenerating?: boolean;
 }
 
 export default function ChatInput({
   onSend,
+  onStop,
   disabled,
-  loading = false,
+  isGenerating = false,
 }: ChatInputProps) {
   const [text, setText] = useState('');
 
   const handleSend = useCallback(() => {
-    if (!isValidMessage(text) || disabled) return;
+    if (isGenerating || !isValidMessage(text) || disabled) return;
     const sent = onSend(text);
     if (sent) setText('');
-  }, [text, disabled, onSend]);
+  }, [text, disabled, onSend, isGenerating]);
+
+  const handleStop = useCallback(() => {
+    onStop?.();
+  }, [onStop]);
 
   const handleKeyDown = (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
     if (e.key === 'Enter' && !e.shiftKey) {
       e.preventDefault();
-      handleSend();
+      if (!isGenerating) handleSend();
     }
   };
 
-  const canSend = isValidMessage(text) && !disabled;
+  const canSend = isValidMessage(text) && !disabled && !isGenerating;
 
   return (
     <div className={styles.inputArea}>
@@ -48,16 +55,26 @@ export default function ChatInput({
           variant="borderless"
           aria-label="Message input"
         />
-        <Button
-          type="primary"
-          shape="default"
-          icon={<SendOutlined />}
-          onClick={handleSend}
-          disabled={!canSend}
-          loading={loading}
-          className={`${styles.sendBtn} ${canSend ? styles.sendBtnActive : ''}`}
-          aria-label="Send message"
-        />
+        {isGenerating ? (
+          <Button
+            type="primary"
+            shape="default"
+            icon={<StopOutlined />}
+            onClick={handleStop}
+            className={`${styles.sendBtn} ${styles.sendBtnActive}`}
+            aria-label="停止生成"
+          />
+        ) : (
+          <Button
+            type="primary"
+            shape="default"
+            icon={<SendOutlined />}
+            onClick={handleSend}
+            disabled={!canSend}
+            className={`${styles.sendBtn} ${canSend ? styles.sendBtnActive : ''}`}
+            aria-label="Send message"
+          />
+        )}
       </div>
       <p className={styles.disclaimer}>AI 可能会犯错，请核实重要信息</p>
     </div>

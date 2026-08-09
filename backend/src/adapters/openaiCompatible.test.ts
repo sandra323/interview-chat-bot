@@ -101,4 +101,104 @@ describe('OpenAICompatibleAdapter', () => {
       adapter.chat([{ role: 'user', content: 'Hi' }], config),
     ).rejects.toBeInstanceOf(LLMAdapterError);
   });
+
+  it('yields streamed delta content from SSE', async () => {
+    const sse = [
+      'data: {"choices":[{"delta":{"content":"Hel"}}]}',
+      '',
+      'data: {"choices":[{"delta":{"content":"lo"}}]}',
+      '',
+      'data: [DONE]',
+      '',
+    ].join('\n');
+
+    vi.mocked(fetch).mockResolvedValueOnce(
+      new Response(sse, {
+        status: 200,
+        headers: { 'Content-Type': 'text/event-stream' },
+      }),
+    );
+
+    const adapter = new OpenAICompatibleAdapter();
+    const chunks: string[] = [];
+    for await (const delta of adapter.chatStream(
+      [{ role: 'user', content: 'Hi' }],
+      config,
+    )) {
+      chunks.push(delta);
+    }
+
+    expect(chunks.join('')).toBe('Hello');
+    const body = JSON.parse(
+      vi.mocked(fetch).mock.calls[0][1]?.body as string,
+    ) as { stream: boolean };
+    expect(body.stream).toBe(true);
+  });
+
+  it('throws LLM_API_ERROR on non-2xx stream response', async () => {
+    vi.mocked(fetch).mockResolvedValueOnce(
+      new Response('Unauthorized', { status: 401 }),
+    );
+
+    const adapter = new OpenAICompatibleAdapter();
+
+    await expect(async () => {
+      for await (const _ of adapter.chatStream(
+        [{ role: 'user', content: 'Hi' }],
+        config,
+      )) {
+        // drain
+      }
+    }).rejects.toMatchObject({
+      code: 'LLM_API_ERROR',
+    });
+  });
+
+  it('throws LLM_API_ERROR when stream yields no content', async () => {
+    const sse = ['data: {"choices":[{"delta":{}}]}', '', 'data: [DONE]', ''].join(
+      '\n',
+    );
+
+    vi.mocked(fetch).mockResolvedValueOnce(
+      new Response(sse, {
+        status: 200,
+        headers: { 'Content-Type': 'text/event-stream' },
+      }),
+    );
+
+    const adapter = new OpenAICompatibleAdapter();
+
+    await expect(async () => {
+      for await (const _ of adapter.chatStream(
+        [{ role: 'user', content: 'Hi' }],
+        config,
+      )) {
+        // drain
+      }
+    }).rejects.toBeInstanceOf(LLMAdapterError);
+  });
+
+  it('throws REQUEST_TIMEOUT on stream abort', async () => {
+    vi.mocked(fetch).mockImplementationOnce(
+      () =>
+        new Promise((_resolve, reject) => {
+          const error = new Error('Aborted');
+          error.name = 'AbortError';
+          reject(error);
+        }),
+    );
+
+    const adapter = new OpenAICompatibleAdapter();
+
+    await expect(async () => {
+      for await (const _ of adapter.chatStream(
+        [{ role: 'user', content: 'Hi' }],
+        config,
+      )) {
+        // drain
+      }
+    }).rejects.toMatchObject({
+      code: 'REQUEST_TIMEOUT',
+    });
+  });
 });

@@ -1,5 +1,4 @@
 import {
-  getModelTimeoutMs,
   isAllowedModelId,
   resolveAllowedModel,
   type ClientMessage,
@@ -7,15 +6,12 @@ import {
 } from '@ai-chat/shared';
 import type { ConnectionState } from './connectionManager.js';
 import type { ConnectionManager } from './connectionManager.js';
-import { OpenAICompatibleAdapter } from '../adapters/openaiCompatible.js';
 import { RateLimiter } from '../utils/rateLimiter.js';
 import { logger } from '../utils/logger.js';
-import {
-  buildLlmConfig,
-  readServerEnv,
-} from '../config/env.js';
+import { buildLlmConfig, readServerEnv } from '../config/env.js';
+import { getChatStore } from '../store/chatStore.js';
+import type { GenerationRunner } from '../generation/generationRunner.js';
 
-const adapter = new OpenAICompatibleAdapter();
 const rateLimiter = new RateLimiter(10, 60_000);
 const MAX_CONTENT_LENGTH = 10_000;
 
@@ -32,7 +28,6 @@ function parseClientMessage(raw: string): ClientMessage | null {
       return null;
     }
     const msg = parsed as Record<string, unknown>;
-    // Reject legacy payloads that tried to smuggle credentials
     if ('config' in msg || 'apiKey' in msg) {
       return null;
     }
@@ -46,6 +41,7 @@ export async function handleMessage(
   raw: string,
   connection: ConnectionState,
   _manager: ConnectionManager,
+  runner: GenerationRunner,
 ): Promise<void> {
   const message = parseClientMessage(raw);
 
@@ -62,14 +58,161 @@ export async function handleMessage(
     return;
   }
 
+  if (message.type === 'hello') {
+    handleHello(message, connection);
+    return;
+  }
+
+  if (message.type === 'resume') {
+    handleResume(message, connection, runner);
+    return;
+  }
+
+  if (message.type === 'stop') {
+    handleStop(message, connection, runner);
+    return;
+  }
+
   if (message.type === 'chat') {
-    await handleChatMessage(message, connection);
+    await handleChatMessage(message, connection, runner);
+  }
+}
+
+function handleHello(
+  message: Extract<ClientMessage, { type: 'hello' }>,
+  connection: ConnectionState,
+): void {
+  const store = getChatStore();
+  const conversationId = store.ensureConversation(message.conversationId);
+  connection.conversationId = conversationId;
+  sendMessage(connection.ws, { type: 'session', conversationId });
+}
+
+function handleResume(
+  message: Extract<ClientMessage, { type: 'resume' }>,
+  connection: ConnectionState,
+  runner: GenerationRunner,
+): void {
+  const store = getChatStore();
+  if (!store.conversationExists(message.conversationId)) {
+    sendMessage(connection.ws, {
+      type: 'error',
+      code: 'NOT_FOUND',
+      message: '哎呀，找不到这个会话了，请新建对话',
+    });
+    return;
+  }
+
+  connection.conversationId = message.conversationId;
+  sendMessage(connection.ws, {
+    type: 'session',
+    conversationId: message.conversationId,
+  });
+
+  const generationId =
+    message.generationId ??
+    store.getRunningGeneration(message.conversationId)?.id;
+
+  if (!generationId) {
+    return;
+  }
+
+  const generation = store.getGeneration(generationId);
+  if (!generation || generation.conversationId !== message.conversationId) {
+    sendMessage(connection.ws, {
+      type: 'generation_error',
+      conversationId: message.conversationId,
+      generationId,
+      code: 'NOT_FOUND',
+      message: '哎呀，找不到这条回复了',
+    });
+    return;
+  }
+
+  const offset = Math.max(0, message.offset ?? 0);
+  const tail = generation.contentBuffer.slice(offset);
+  const done = generation.status !== 'running';
+
+  sendMessage(connection.ws, {
+    type: 'reply_catchup',
+    conversationId: message.conversationId,
+    generationId,
+    content: tail,
+    offset,
+    done,
+    reason:
+      generation.status === 'completed'
+        ? 'completed'
+        : generation.status === 'cancelled'
+          ? 'cancelled'
+          : undefined,
+  });
+
+  if (generation.status === 'error') {
+    sendMessage(connection.ws, {
+      type: 'generation_error',
+      conversationId: message.conversationId,
+      generationId,
+      code: 'LLM_API_ERROR',
+      message: generation.error ?? '哎呀，模型服务开小差了，请稍后重试',
+    });
+  }
+
+  // Live deltas fan-out via conversationId binding; runner kept for API symmetry
+  void runner;
+}
+
+function handleStop(
+  message: Extract<ClientMessage, { type: 'stop' }>,
+  connection: ConnectionState,
+  runner: GenerationRunner,
+): void {
+  const store = getChatStore();
+  const generation = store.getGeneration(message.generationId);
+  if (!generation || generation.conversationId !== message.conversationId) {
+    sendMessage(connection.ws, {
+      type: 'error',
+      code: 'NOT_FOUND',
+      message: '哎呀，没有正在进行的生成任务',
+    });
+    return;
+  }
+
+  connection.conversationId = message.conversationId;
+
+  if (generation.status !== 'running') {
+    sendMessage(connection.ws, {
+      type: 'reply_end',
+      conversationId: message.conversationId,
+      generationId: message.generationId,
+      messageId: message.generationId,
+      content: generation.contentBuffer,
+      reason: generation.status === 'cancelled' ? 'cancelled' : 'completed',
+    });
+    return;
+  }
+
+  const stopped = runner.stop(message.generationId);
+  if (!stopped) {
+    // Orphaned running row (e.g. after restart) — finalize locally
+    store.finalizeGeneration(message.generationId, 'cancelled', {
+      persistAssistant: true,
+    });
+    sendMessage(connection.ws, {
+      type: 'reply_end',
+      conversationId: message.conversationId,
+      generationId: message.generationId,
+      messageId: message.generationId,
+      content: generation.contentBuffer,
+      reason: 'cancelled',
+    });
   }
 }
 
 async function handleChatMessage(
   message: Extract<ClientMessage, { type: 'chat' }>,
   connection: ConnectionState,
+  runner: GenerationRunner,
 ): Promise<void> {
   const env = readServerEnv();
   if (!env.llmApiKey) {
@@ -81,7 +224,6 @@ async function handleChatMessage(
     return;
   }
 
-  // Clients may only pick from the allowlist; unknown → default (no arbitrary model injection)
   if (message.model !== undefined && !isAllowedModelId(message.model)) {
     sendMessage(connection.ws, {
       type: 'error',
@@ -93,6 +235,7 @@ async function handleChatMessage(
 
   const model = resolveAllowedModel(message.model ?? env.defaultModel);
   const config = buildLlmConfig(env, model);
+  const store = getChatStore();
 
   const trimmedContent = message.content?.trim() ?? '';
   if (!trimmedContent) {
@@ -113,15 +256,6 @@ async function handleChatMessage(
     return;
   }
 
-  if (connection.isProcessing) {
-    sendMessage(connection.ws, {
-      type: 'error',
-      code: 'ALREADY_PROCESSING',
-      message: '哎呀，上一条还在处理中，请稍后再发',
-    });
-    return;
-  }
-
   if (!rateLimiter.tryConsume(connection.connectionId)) {
     sendMessage(connection.ws, {
       type: 'error',
@@ -131,51 +265,47 @@ async function handleChatMessage(
     return;
   }
 
-  connection.isProcessing = true;
-  connection.messages.push({ role: 'user', content: trimmedContent });
+  const conversationId = store.ensureConversation(
+    message.conversationId ?? connection.conversationId ?? undefined,
+  );
+  connection.conversationId = conversationId;
 
-  const startTime = Date.now();
-  const timeoutMs = getModelTimeoutMs(config.model);
-
-  try {
-    const replyContent = await adapter.chat(connection.messages, config, {
-      timeoutMs,
-    });
-    const messageId = crypto.randomUUID();
-
-    connection.messages.push({ role: 'assistant', content: replyContent });
-
-    sendMessage(connection.ws, {
-      type: 'reply',
-      content: replyContent,
-      messageId,
-    });
-
-    logger.info('LLM call succeeded', {
-      connectionId: connection.connectionId,
-      durationMs: Date.now() - startTime,
-      model: config.model,
-    });
-  } catch (error) {
-    const errorMessage =
-      error instanceof Error ? error.message : '哎呀，页面开小差了，请稍后重试';
-    const errorCode =
-      error && typeof error === 'object' && 'code' in error
-        ? (error as { code: string }).code
-        : 'LLM_API_ERROR';
-
+  const running = store.getRunningGeneration(conversationId);
+  if (running) {
     sendMessage(connection.ws, {
       type: 'error',
-      code: errorCode as Extract<ServerMessage, { type: 'error' }>['code'],
-      message: errorMessage,
+      code: 'ALREADY_PROCESSING',
+      message: '哎呀，上一条还在处理中，请先停止或稍后再发',
     });
-
-    logger.error('LLM call failed', {
-      connectionId: connection.connectionId,
-      durationMs: Date.now() - startTime,
-      code: errorCode,
-    });
-  } finally {
-    connection.isProcessing = false;
+    return;
   }
+
+  sendMessage(connection.ws, { type: 'session', conversationId });
+
+  store.appendMessage(conversationId, 'user', trimmedContent);
+  const generationId = crypto.randomUUID();
+  store.createGeneration(conversationId, generationId);
+
+  const llmMessages = store.listChatMessages(conversationId);
+
+  sendMessage(connection.ws, {
+    type: 'reply_start',
+    conversationId,
+    generationId,
+    messageId: generationId,
+  });
+
+  runner.start({
+    conversationId,
+    generationId,
+    llmMessages,
+    config,
+  });
+
+  logger.info('LLM generation started', {
+    connectionId: connection.connectionId,
+    conversationId,
+    generationId,
+    model: config.model,
+  });
 }

@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { message as antdMessage } from 'antd';
 import { USE_MOCK } from '@/config/app';
 import { MODEL_OPTIONS } from '@/config/models';
@@ -15,14 +15,13 @@ import styles from './index.module.less';
 export default function ChatPage() {
   const [sidebarOpen, setSidebarOpen] = useState(true);
   const chatScrollRef = useRef<HTMLDivElement>(null);
-  const { sendMessage } = useChatService();
+  const { sendMessage, stopGeneration, clearConversation } = useChatService();
 
   const messages = useChatStore((s) => s.messages);
   const model = useChatStore((s) => s.model);
   const ui = useChatStore((s) => s.ui);
   const setModel = useChatStore((s) => s.setModel);
   const setError = useChatStore((s) => s.setError);
-  const clearChat = useChatStore((s) => s.clearChat);
 
   useEffect(() => {
     if (!ui.error) return;
@@ -38,8 +37,8 @@ export default function ChatPage() {
   );
 
   const handleNewChat = useCallback(() => {
-    clearChat();
-  }, [clearChat]);
+    clearConversation();
+  }, [clearConversation]);
 
   const handleSuggestion = useCallback(
     (text: string) => {
@@ -48,8 +47,14 @@ export default function ChatPage() {
     [sendMessage],
   );
 
-  const isInputDisabled =
-    ui.loading || (!USE_MOCK && ui.connectionStatus !== 'open');
+  const isGenerating = useMemo(
+    () =>
+      ui.loading ||
+      messages.some((m) => m.role === 'assistant' && m.status === 'pending'),
+    [messages, ui.loading],
+  );
+
+  const isInputDisabled = !USE_MOCK && ui.connectionStatus !== 'open';
 
   const modelLabel =
     MODEL_OPTIONS.find((m) => m.id === model)?.label ?? model;
@@ -67,7 +72,7 @@ export default function ChatPage() {
         model={model}
         onModelChange={handleModelChange}
         onToggleSidebar={() => setSidebarOpen((v) => !v)}
-        onClearChat={clearChat}
+        onClearChat={clearConversation}
         showMockBadge={USE_MOCK}
       />
       {!USE_MOCK && <ConnectionBanner status={ui.connectionStatus} />}
@@ -83,15 +88,16 @@ export default function ChatPage() {
             <section className={styles.chatArea} aria-label="Chat conversation">
               <MessageList
                 messages={messages}
-                loading={ui.loading}
+                loading={ui.loading && !isGenerating}
                 modelLabel={modelLabel}
                 onSuggestion={handleSuggestion}
                 scrollContainerRef={chatScrollRef}
               />
               <ChatInput
                 onSend={sendMessage}
+                onStop={stopGeneration}
                 disabled={isInputDisabled}
-                loading={ui.loading}
+                isGenerating={isGenerating}
               />
             </section>
           </Main>

@@ -16,10 +16,10 @@ export const MOCK_INITIAL_MESSAGES: Message[] = [
 ];
 
 const MOCK_REPLIES = [
-  '这是 mock 模式的模拟回复。你的消息已成功收到！',
-  '静态预览运行正常。界面包含消息列表、输入框和 Loading 动画。',
-  'Mock 模式下不会发起真实的网络请求，可以放心查看 UI 效果。',
-  '收到：「{input}」\n\n（以上为 mock 数据，非真实 LLM 回复）',
+  '这是 **mock 模式** 的模拟回复。你的消息已成功收到！\n\n可以用行内代码 `token` 或代码块验证流式 Markdown：\n\n```ts\nconst ok = true;\nconsole.log(ok);\n```',
+  '静态预览运行正常。界面包含消息列表、输入框和 Loading 动画。\n\n- **加粗** 与 `行内代码`\n- 未闭合语法会在流式过程中即时成样式',
+  'Mock 模式下不会发起真实的网络请求，可以放心查看 UI 效果。\n\n收到：「{input}」\n\n（以上为 mock 数据，非真实 LLM 回复）',
+  '收到：「{input}」\n\n### 小结\n\n1. 流式分片推送\n2. Markdown **边收边渲染**\n3. 贴底跟滚（上滑超过 30px 暂停）',
 ];
 
 export function generateMockReply(userInput: string): string {

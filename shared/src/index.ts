@@ -2,6 +2,7 @@ export type { ChatRole, MessageStatus, Message, ChatMessage } from './types/mess
 export type { Config, LLMConfig } from './types/config.js';
 export type {
   ErrorCode,
+  ReplyEndReason,
   ClientMessage,
   ServerMessage,
   ConnectionStatus,

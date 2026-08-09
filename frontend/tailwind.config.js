@@ -1,6 +1,11 @@
 /** @type {import('tailwindcss').Config} */
 export default {
-  content: ['./index.html', './src/**/*.{js,ts,jsx,tsx,less}'],
+  content: [
+    './index.html',
+    './src/**/*.{js,ts,jsx,tsx,less}',
+    // Streamdown ships Tailwind utility classes in its dist bundle (hoisted in monorepo)
+    '../node_modules/streamdown/dist/*.js',
+  ],
   theme: {
     extend: {
       colors: {

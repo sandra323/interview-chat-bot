@@ -1,10 +1,9 @@
 import type { WebSocket } from 'ws';
-import type { ChatMessage } from '@ai-chat/shared';
 
 export interface ConnectionState {
   connectionId: string;
-  messages: ChatMessage[];
-  isProcessing: boolean;
+  /** Bound conversation for resume/fan-out; set via hello/chat */
+  conversationId: string | null;
   ws: WebSocket;
 }
 
@@ -15,8 +14,7 @@ export class ConnectionManager {
     const connectionId = crypto.randomUUID();
     const state: ConnectionState = {
       connectionId,
-      messages: [],
-      isProcessing: false,
+      conversationId: null,
       ws,
     };
     this.connections.set(connectionId, state);
@@ -24,10 +22,6 @@ export class ConnectionManager {
   }
 
   removeConnection(connectionId: string): void {
-    const state = this.connections.get(connectionId);
-    if (state) {
-      state.messages = [];
-    }
     this.connections.delete(connectionId);
   }
 
@@ -37,5 +31,11 @@ export class ConnectionManager {
 
   getAllConnections(): ConnectionState[] {
     return Array.from(this.connections.values());
+  }
+
+  getConnectionsForConversation(conversationId: string): ConnectionState[] {
+    return this.getAllConnections().filter(
+      (c) => c.conversationId === conversationId,
+    );
   }
 }
