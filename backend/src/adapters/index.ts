@@ -1,2 +1,6 @@
 export { OpenAICompatibleAdapter } from './openaiCompatible.js';
-export { LLMAdapterError, type LLMAdapter } from './types.js';
+export {
+  LLMAdapterError,
+  type ChatRequestOptions,
+  type LLMAdapter,
+} from './types.js';

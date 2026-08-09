@@ -48,7 +48,7 @@ export function attachWebSocketServer(server: Server): WebSocketServer {
             JSON.stringify({
               type: 'error',
               code: 'INTERNAL_ERROR',
-              message: 'An unexpected error occurred',
+              message: '哎呀，页面开小差了，请稍后重试',
             }),
           );
         }

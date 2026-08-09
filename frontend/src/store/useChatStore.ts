@@ -1,6 +1,11 @@
 import { create } from 'zustand';
 import { persist } from 'zustand/middleware';
 import type { Config, ConnectionStatus, Message } from '@ai-chat/shared';
+import {
+  DEEPSEEK_API_KEY,
+  DEEPSEEK_API_URL,
+  DEFAULT_MODEL,
+} from '@/config/app';
 
 interface UIState {
   loading: boolean;
@@ -24,9 +29,9 @@ interface ChatState {
 }
 
 const defaultConfig: Config = {
-  apiUrl: 'https://api.openai.com/v1/chat/completions',
-  apiKey: '',
-  model: 'gpt-4o-mini',
+  apiUrl: DEEPSEEK_API_URL,
+  apiKey: DEEPSEEK_API_KEY,
+  model: DEFAULT_MODEL,
 };
 
 export const useChatStore = create<ChatState>()(
@@ -76,13 +81,35 @@ export const useChatStore = create<ChatState>()(
       setHasHydrated: (value) => set({ _hasHydrated: value }),
     }),
     {
-      name: 'ai-chat-state',
+      // bump when default provider/model changes so stale localStorage is dropped
+      name: 'ai-chat-state-v3',
       partialize: (state) => ({
         messages: state.messages,
         config: state.config,
       }),
       onRehydrateStorage: () => (state) => {
-        state?.setHasHydrated(true);
+        if (!state) return;
+        const patch: Partial<Config> = {};
+        if (!state.config.apiKey && DEEPSEEK_API_KEY) {
+          patch.apiKey = DEEPSEEK_API_KEY;
+        }
+        if (
+          !state.config.apiUrl ||
+          state.config.apiUrl.includes('api.openai.com')
+        ) {
+          patch.apiUrl = DEEPSEEK_API_URL;
+        }
+        if (
+          !state.config.model ||
+          state.config.model.startsWith('gpt-') ||
+          state.config.model.startsWith('claude-')
+        ) {
+          patch.model = DEFAULT_MODEL;
+        }
+        if (Object.keys(patch).length > 0) {
+          state.setConfig(patch);
+        }
+        state.setHasHydrated(true);
       },
     },
   ),

@@ -6,3 +6,8 @@ export type {
   ServerMessage,
   ConnectionStatus,
 } from './types/websocket.js';
+export {
+  DEFAULT_LLM_TIMEOUT_MS,
+  MODEL_TIMEOUT_MS,
+  getModelTimeoutMs,
+} from './config/timeouts.js';

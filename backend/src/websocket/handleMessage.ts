@@ -1,4 +1,8 @@
-import type { ClientMessage, ServerMessage } from '@ai-chat/shared';
+import {
+  getModelTimeoutMs,
+  type ClientMessage,
+  type ServerMessage,
+} from '@ai-chat/shared';
 import type { ConnectionState } from './connectionManager.js';
 import type { ConnectionManager } from './connectionManager.js';
 import { OpenAICompatibleAdapter } from '../adapters/openaiCompatible.js';
@@ -38,7 +42,7 @@ export async function handleMessage(
     sendMessage(connection.ws, {
       type: 'error',
       code: 'INVALID_MESSAGE',
-      message: 'Invalid message format',
+      message: '哎呀，消息格式开小差了，请稍后重试',
     });
     return;
   }
@@ -62,7 +66,7 @@ async function handleChatMessage(
     sendMessage(connection.ws, {
       type: 'error',
       code: 'INVALID_CONFIG',
-      message: 'API URL and API key are required',
+      message: '哎呀，还没配置好 API 信息，请先在设置里填完整',
     });
     return;
   }
@@ -72,7 +76,7 @@ async function handleChatMessage(
     sendMessage(connection.ws, {
       type: 'error',
       code: 'INVALID_MESSAGE',
-      message: 'Message content cannot be empty',
+      message: '哎呀，消息内容不能为空哦',
     });
     return;
   }
@@ -81,7 +85,7 @@ async function handleChatMessage(
     sendMessage(connection.ws, {
       type: 'error',
       code: 'INVALID_MESSAGE',
-      message: `Message exceeds maximum length of ${MAX_CONTENT_LENGTH} characters`,
+      message: '哎呀，消息有点太长了，请缩短后再试',
     });
     return;
   }
@@ -90,7 +94,7 @@ async function handleChatMessage(
     sendMessage(connection.ws, {
       type: 'error',
       code: 'ALREADY_PROCESSING',
-      message: 'Please wait for the current request to complete',
+      message: '哎呀，上一条还在处理中，请稍后再发',
     });
     return;
   }
@@ -99,7 +103,7 @@ async function handleChatMessage(
     sendMessage(connection.ws, {
       type: 'error',
       code: 'RATE_LIMITED',
-      message: 'Rate limit exceeded. Please wait before sending more messages.',
+      message: '哎呀，发送有点太频繁了，请稍后再试',
     });
     return;
   }
@@ -108,9 +112,12 @@ async function handleChatMessage(
   connection.messages.push({ role: 'user', content: trimmedContent });
 
   const startTime = Date.now();
+  const timeoutMs = getModelTimeoutMs(config.model);
 
   try {
-    const replyContent = await adapter.chat(connection.messages, config);
+    const replyContent = await adapter.chat(connection.messages, config, {
+      timeoutMs,
+    });
     const messageId = crypto.randomUUID();
 
     connection.messages.push({ role: 'assistant', content: replyContent });
@@ -127,7 +134,7 @@ async function handleChatMessage(
     });
   } catch (error) {
     const errorMessage =
-      error instanceof Error ? error.message : 'Unknown error occurred';
+      error instanceof Error ? error.message : '哎呀，页面开小差了，请稍后重试';
     const errorCode =
       error && typeof error === 'object' && 'code' in error
         ? (error as { code: string }).code

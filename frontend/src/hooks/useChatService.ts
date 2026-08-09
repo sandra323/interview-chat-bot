@@ -1,20 +1,16 @@
 import { useCallback, useEffect, useRef } from 'react';
+import type { ServerMessage } from '@ai-chat/shared';
 import { USE_MOCK, MOCK_REPLY_DELAY_MS } from '@/config/app';
 import { generateMockReply, MOCK_INITIAL_MESSAGES } from '@/mocks/chatMock';
+import { parseServerMessage } from '@/apis/websocket/messageParser';
+import { sendChatMessage } from '@/apis/websocket/chat';
+import { WebSocketClient } from '@/apis/websocket/client';
 import { createMessage, useChatStore } from '@/store/useChatStore';
-import { isValidMessage } from '@/utils/validators';
-
-// ---------------------------------------------------------------------------
-// 真实 API / WebSocket 联调（mock 模式下暂不使用，恢复联调时取消注释）
-// ---------------------------------------------------------------------------
-// import type { ServerMessage } from '@ai-chat/shared';
-// import { parseServerMessage } from '@/apis/websocket/messageParser';
-// import { sendChatMessage } from '@/apis/websocket/chat';
-// import { WebSocketClient } from '@/apis/websocket/client';
-// import { getWebSocketUrl, isConfigComplete } from '@/utils/validators';
-//
-// function handleServerMessage(...) { ... }
-// function useRealChatService() { ... }
+import {
+  getWebSocketUrl,
+  isConfigComplete,
+  isValidMessage,
+} from '@/utils/validators';
 
 function seedMockMessages(): void {
   if (useChatStore.getState().messages.length === 0) {
@@ -24,18 +20,38 @@ function seedMockMessages(): void {
   }
 }
 
+function handleServerMessage(raw: string): void {
+  const message = parseServerMessage(raw) as ServerMessage | null;
+  if (!message) return;
+
+  const { addMessage, setLoading, setError, setConnectionStatus } =
+    useChatStore.getState();
+
+  switch (message.type) {
+    case 'connected':
+      setConnectionStatus('open');
+      break;
+    case 'reply':
+      addMessage(createMessage('assistant', message.content, 'sent'));
+      setLoading(false);
+      setError(null);
+      break;
+    case 'error':
+      setLoading(false);
+      setError(message.message);
+      break;
+    default:
+      break;
+  }
+}
+
 function useMockChatService() {
   const timerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
-  const { addMessage, setLoading, setError, setConnectionStatus, setConfig } =
+  const { addMessage, setLoading, setError, setConnectionStatus } =
     useChatStore();
 
   useEffect(() => {
     setConnectionStatus('open');
-    setConfig({
-      apiUrl: 'https://api.openai.com/v1/chat/completions',
-      apiKey: 'sk-mock-key-for-preview',
-      model: 'gpt-4o-mini',
-    });
 
     const unsub = useChatStore.persist.onFinishHydration(seedMockMessages);
     if (useChatStore.persist.hasHydrated()) {
@@ -46,7 +62,7 @@ function useMockChatService() {
       unsub();
       if (timerRef.current) clearTimeout(timerRef.current);
     };
-  }, [setConnectionStatus, setConfig]);
+  }, [setConnectionStatus]);
 
   const sendMessage = useCallback(
     (text: string) => {
@@ -76,11 +92,75 @@ function useMockChatService() {
   return { sendMessage, reconnect };
 }
 
-export function useChatService() {
-  return useMockChatService();
+function useRealChatService() {
+  const clientRef = useRef<WebSocketClient | null>(null);
+  const { addMessage, setLoading, setError, setConnectionStatus } =
+    useChatStore();
 
-  // 恢复真实 API 联调：
-  // return USE_MOCK ? useMockChatService() : useRealChatService();
+  useEffect(() => {
+    const client = new WebSocketClient(getWebSocketUrl());
+    clientRef.current = client;
+
+    client.onMessage(handleServerMessage);
+    client.onStatusChange((status) => {
+      setConnectionStatus(status);
+    });
+    client.connect();
+
+    return () => {
+      client.disconnect();
+      clientRef.current = null;
+    };
+  }, [setConnectionStatus]);
+
+  const sendMessage = useCallback(
+    (text: string) => {
+      const trimmed = text.trim();
+      if (!isValidMessage(trimmed)) return false;
+
+      const currentConfig = useChatStore.getState().config;
+      if (!isConfigComplete(currentConfig)) {
+        setError('哎呀，还没配置好 API 信息，请先在设置里填完整');
+        return false;
+      }
+
+      const client = clientRef.current;
+      if (!client || client.getStatus() !== 'open') {
+        setError('哎呀，还没连上服务器，请先启动后端并点击「保存并重连」');
+        return false;
+      }
+
+      addMessage(createMessage('user', trimmed));
+      setLoading(true);
+      setError(null);
+
+      const sent = sendChatMessage(client, trimmed, currentConfig);
+      if (!sent) {
+        setLoading(false);
+        setError('哎呀，消息没发出去，请检查连接后再试');
+        return false;
+      }
+
+      return true;
+    },
+    [addMessage, setLoading, setError],
+  );
+
+  const reconnect = useCallback(() => {
+    setError(null);
+    const client = clientRef.current;
+    if (!client) return;
+    client.disconnect();
+    client.connect();
+  }, [setError]);
+
+  return { sendMessage, reconnect };
 }
 
-void USE_MOCK;
+/** USE_MOCK is a build-time constant — only one branch is used per session. */
+export function useChatService() {
+  if (USE_MOCK) {
+    return useMockChatService();
+  }
+  return useRealChatService();
+}

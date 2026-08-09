@@ -1,7 +1,14 @@
-import type { ChatMessage, LLMConfig } from '@ai-chat/shared';
-import { LLMAdapterError, type LLMAdapter } from './types.js';
-
-const DEFAULT_TIMEOUT_MS = 30_000;
+import {
+  DEFAULT_LLM_TIMEOUT_MS,
+  type ChatMessage,
+  type LLMConfig,
+} from '@ai-chat/shared';
+import {
+  LLMAdapterError,
+  type ChatRequestOptions,
+  type LLMAdapter,
+} from './types.js';
+import { logger } from '../utils/logger.js';
 
 interface OpenAIChatResponse {
   choices?: Array<{
@@ -11,10 +18,19 @@ interface OpenAIChatResponse {
   }>;
 }
 
+/**
+ * OpenAI-compatible Chat Completions adapter (DeepSeek, OpenAI, etc.).
+ * Phase 2 can add chatStream() here and pass extraBody for thinking mode.
+ */
 export class OpenAICompatibleAdapter implements LLMAdapter {
-  async chat(messages: ChatMessage[], config: LLMConfig): Promise<string> {
+  async chat(
+    messages: ChatMessage[],
+    config: LLMConfig,
+    options?: ChatRequestOptions,
+  ): Promise<string> {
+    const timeoutMs = options?.timeoutMs ?? DEFAULT_LLM_TIMEOUT_MS;
     const controller = new AbortController();
-    const timeoutId = setTimeout(() => controller.abort(), DEFAULT_TIMEOUT_MS);
+    const timeoutId = setTimeout(() => controller.abort(), timeoutMs);
 
     try {
       const response = await fetch(config.apiUrl, {
@@ -26,15 +42,23 @@ export class OpenAICompatibleAdapter implements LLMAdapter {
         body: JSON.stringify({
           model: config.model,
           messages,
+          ...(options?.extraBody ?? {}),
+          // Enforce non-streaming; chat() cannot consume SSE responses.
+          stream: false,
         }),
         signal: controller.signal,
       });
 
       if (!response.ok) {
         const errorText = await response.text().catch(() => 'Unknown error');
+        // Keep provider details in logs only; user-facing copy stays friendly.
+        logger.error('LLM API error', {
+          status: response.status,
+          body: errorText.slice(0, 200),
+        });
         throw new LLMAdapterError(
           'LLM_API_ERROR',
-          `The server returned status ${response.status}: ${errorText.slice(0, 200)}`,
+          '哎呀，模型服务开小差了，请稍后重试',
         );
       }
 
@@ -44,7 +68,7 @@ export class OpenAICompatibleAdapter implements LLMAdapter {
       if (!content) {
         throw new LLMAdapterError(
           'LLM_API_ERROR',
-          'Invalid response format from LLM API',
+          '哎呀，模型回复读不懂了，请稍后重试',
         );
       }
 
@@ -57,13 +81,13 @@ export class OpenAICompatibleAdapter implements LLMAdapter {
       if (error instanceof Error && error.name === 'AbortError') {
         throw new LLMAdapterError(
           'REQUEST_TIMEOUT',
-          'LLM request timed out after 30 seconds',
+          '哎呀，等待超时了，请稍后重试',
         );
       }
 
       throw new LLMAdapterError(
         'NETWORK_ERROR',
-        error instanceof Error ? error.message : 'Network request failed',
+        '哎呀，网络开小差了，请稍后重试',
       );
     } finally {
       clearTimeout(timeoutId);

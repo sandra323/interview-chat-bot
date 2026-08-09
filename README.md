@@ -72,31 +72,38 @@ npm run dev:frontend
 
 看到 `Local: http://localhost:5173/` 后，浏览器打开该地址即可。
 
-当前 `frontend/src/config/app.ts` 中 `USE_MOCK = true` 时，**只开前端**就能用 mock 数据聊天，不必启动后端。停止服务：在对应终端按 `Ctrl + C`。
+当前默认 `USE_MOCK = false`，需要同时启动后端才能真实对话。若只想前端预览，把 `frontend/src/config/app.ts` 里 `USE_MOCK` 改为 `true`。停止服务：在对应终端按 `Ctrl + C`。
 
-### 可选：连真实后端 / LLM
+### 接入 DeepSeek（推荐）
 
-需要真实 WebSocket 与 LLM 时，开两个终端（或用根目录 `npm run dev`）：
+DeepSeek 兼容 OpenAI Chat Completions，本项目默认走 DeepSeek。
+
+1. 复制环境变量模板并填入 Key（**不要提交真实 Key**）：
 
 ```bash
-# 终端 1 — 后端
+cp frontend/.env.example frontend/.env.local
+# 编辑 frontend/.env.local：
+# VITE_DEEPSEEK_API_KEY=sk-your-key
+```
+
+2. 启动前后端：
+
+```bash
+# 终端 1
 npm run dev:backend
 
-# 终端 2 — 前端
+# 终端 2（修改 .env.local 后需重启 Vite）
 npm run dev:frontend
 ```
 
-然后：
+3. 打开 http://localhost:5173  
+   - Header 默认模型：**DeepSeek V4 Flash**（可切换 Pro）  
+   - Settings 可点 **DeepSeek 默认** 一键填入 URL / 模型；Key 来自 `.env.local` 或手动粘贴  
+   - 点 **保存并重连** 后即可聊天  
 
-1. 将 `frontend/src/config/app.ts` 里的 `USE_MOCK` 改为 `false`
-2. 打开应用，展开 **Settings**
-3. 填写：
-   - **API URL**：如 `https://api.openai.com/v1/chat/completions`
-   - **API Key**：你的 LLM API Key
-   - **Model**：如 `gpt-4o-mini`
-4. 点击 **Save & Reconnect**
+厂商与模型列表集中在 `frontend/src/config/providers.ts`，新增厂商时优先改该文件。
 
-API key 只存在浏览器 localStorage，不会持久化到服务端。
+API key 只存在浏览器 localStorage（及本地 env），不会持久化到服务端。
 
 ### 常用地址
 
@@ -124,6 +131,7 @@ frontend/src/
 ├── pages/Chat/          # Chat page + page-specific components
 ├── components/          # Shared UI components
 ├── apis/websocket/      # WebSocket client & message protocol
+├── config/providers.ts  # LLM vendor/model registry (extend here)
 ├── hooks/               # useWebSocket, useChatService
 ├── store/               # Zustand state + localStorage persist
 ├── utils/               # Validators, formatters, scroll helpers
@@ -131,7 +139,7 @@ frontend/src/
 
 backend/src/
 ├── websocket/           # Connection manager & message handler
-├── adapters/            # LLM provider adapters
+├── adapters/            # LLM provider adapters (OpenAI-compatible)
 └── utils/               # Logger, rate limiter
 ```
 
@@ -141,7 +149,8 @@ backend/src/
 |-------|----------|
 | `engine` / 奇怪的 Node 报错 | 运行 `nvm use`，确认 `node -v` ≥ 20 |
 | WebSocket won't connect | Ensure backend is running and `USE_MOCK` is `false`; check Vite proxy |
-| 401 from LLM API | Verify API key and URL in settings |
+| 401 from LLM API | Verify API key in Settings / `frontend/.env.local` |
+| Model list empty / wrong | Edit `frontend/src/config/providers.ts` |
 | Messages not persisting | Check browser localStorage is enabled |
 | Port 80 in use | Change frontend port mapping in docker-compose.yml |
 

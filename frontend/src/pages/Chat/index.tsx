@@ -2,6 +2,7 @@ import { useCallback, useEffect, useState } from 'react';
 import { message as antdMessage } from 'antd';
 import { USE_MOCK } from '@/config/app';
 import { MODEL_OPTIONS } from '@/config/models';
+import { findProviderByModelId } from '@/config/providers';
 import Header from '@/components/Layout/Header';
 import Main from '@/components/Layout/Main';
 import ConnectionBanner from '@/components/ConnectionBanner';
@@ -15,7 +16,7 @@ import Sidebar from './components/Sidebar';
 import styles from './index.module.less';
 
 export default function ChatPage() {
-  const [showSettings, setShowSettings] = useState(!USE_MOCK);
+  const [showSettings, setShowSettings] = useState(false);
   const [sidebarOpen, setSidebarOpen] = useState(true);
   const { sendMessage, reconnect } = useChatService();
 
@@ -45,7 +46,11 @@ export default function ChatPage() {
 
   const handleModelChange = useCallback(
     (model: string) => {
-      setConfig({ model });
+      const provider = findProviderByModelId(model);
+      setConfig({
+        model,
+        ...(provider ? { apiUrl: provider.apiUrl } : {}),
+      });
     },
     [setConfig],
   );

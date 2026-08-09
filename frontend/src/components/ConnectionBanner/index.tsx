@@ -19,8 +19,8 @@ export default function ConnectionBanner({ status }: ConnectionBannerProps) {
       banner
       message={
         isConnecting
-          ? 'Connecting to server...'
-          : 'Disconnected from server. Retrying...'
+          ? '正在连接服务器…'
+          : '哎呀，和服务器断开了，正在重试…'
       }
     />
   );

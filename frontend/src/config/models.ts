@@ -1,16 +1,15 @@
+import { getAllModelOptions } from './providers';
+
 export interface ModelOption {
   id: string;
   label: string;
   badge?: string;
+  providerId?: string;
+  providerLabel?: string;
 }
 
-export const MODEL_OPTIONS: ModelOption[] = [
-  { id: 'gpt-4o-mini', label: 'GPT-4o mini', badge: 'FAST' },
-  { id: 'gpt-4o', label: 'GPT-4o' },
-  { id: 'claude-sonnet-5', label: 'Claude Sonnet 5', badge: 'LATEST' },
-  { id: 'claude-opus-5', label: 'Claude Opus 5', badge: 'POWERFUL' },
-  { id: 'claude-haiku-4-5', label: 'Claude Haiku 4.5', badge: 'FAST' },
-];
+/** Derived from `LLM_PROVIDERS` — add models there, not here. */
+export const MODEL_OPTIONS: ModelOption[] = getAllModelOptions();
 
 export const SUGGESTIONS = [
   '解释机器学习中的梯度下降',

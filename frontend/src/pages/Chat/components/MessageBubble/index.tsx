@@ -88,7 +88,7 @@ export default function MessageBubble({ message }: MessageBubbleProps) {
       await navigator.clipboard.writeText(message.content);
       antdMessage.success('已复制');
     } catch {
-      antdMessage.error('复制失败');
+      antdMessage.error('哎呀，复制失败了，请稍后重试');
     }
   };
 
