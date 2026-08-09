@@ -1,0 +1,97 @@
+.header {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 12px 16px;
+  border-bottom: 1px solid var(--color-border);
+  background: var(--color-background);
+  flex-shrink: 0;
+}
+
+.iconBtn {
+  color: var(--color-muted-foreground) !important;
+}
+
+.iconBtn:hover {
+  background: rgba(255, 255, 255, 0.05) !important;
+  color: var(--color-foreground) !important;
+}
+
+.titleBlock {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.title {
+  margin: 0;
+  font-size: 14px;
+  font-weight: 500;
+  color: #d1d5db;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.titleMuted {
+  margin: 0;
+  font-size: 14px;
+  color: var(--color-text-tertiary);
+}
+
+.mockBadge {
+  margin-inline-end: 0;
+  font-family: var(--font-mono);
+  font-size: 11px;
+}
+
+.actions {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  flex-shrink: 0;
+}
+
+.modelSelect {
+  min-width: 160px;
+}
+
+.modelSelect :global(.ant-select-selector) {
+  font-family: var(--font-mono) !important;
+  font-size: 11px !important;
+  background: transparent !important;
+}
+
+.modelOption {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  width: 100%;
+}
+
+.modelDot {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: var(--color-accent);
+  flex-shrink: 0;
+}
+
+.modelLabel {
+  flex: 1;
+  font-family: var(--font-mono);
+  font-size: 12px;
+}
+
+.modelBadge {
+  margin-inline-end: 0;
+  font-family: var(--font-mono);
+  font-size: 9px !important;
+  letter-spacing: 0.05em;
+  color: var(--color-accent) !important;
+  background: var(--color-accent-dim) !important;
+  border: 0 !important;
+  line-height: 1.4;
+}

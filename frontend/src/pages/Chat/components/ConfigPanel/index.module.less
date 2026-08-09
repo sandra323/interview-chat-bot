@@ -1,0 +1,36 @@
+.panel {
+  margin: 12px 16px 0;
+  padding: 16px;
+  border-radius: var(--radius-xl);
+  border: 1px solid var(--color-border);
+  background: var(--color-card);
+  max-width: var(--content-max-width);
+  width: calc(100% - 32px);
+  align-self: center;
+}
+
+.title {
+  margin: 0 0 12px;
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--color-foreground);
+}
+
+.form {
+  margin-bottom: 0;
+}
+
+.form :global(.ant-form-item) {
+  margin-bottom: 12px;
+}
+
+.form :global(.ant-form-item-label > label) {
+  font-size: 12px;
+  color: var(--color-text-secondary);
+}
+
+.hint {
+  margin: 0;
+  font-size: 12px;
+  color: var(--color-muted-foreground);
+}
