@@ -1,15 +1,15 @@
-import type { Config } from '@ai-chat/shared';
 import type { WebSocketClient } from './client';
 
+/** Chat payload — content + optional allowlisted model. Never includes API keys. */
 export function sendChatMessage(
   client: WebSocketClient,
   content: string,
-  config: Config,
+  model?: string,
 ): boolean {
   return client.send({
     type: 'chat',
     content,
-    config,
+    ...(model ? { model } : {}),
   });
 }
 

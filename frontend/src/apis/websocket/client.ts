@@ -29,44 +29,64 @@ export class WebSocketClient {
   }
 
   connect(): void {
-    if (this.ws?.readyState === WebSocket.OPEN) {
+    if (
+      this.ws?.readyState === WebSocket.OPEN ||
+      this.ws?.readyState === WebSocket.CONNECTING
+    ) {
       return;
     }
 
     this.manualClose = false;
     this.setStatus('connecting');
 
-    this.ws = new WebSocket(this.url);
+    const ws = new WebSocket(this.url);
+    this.ws = ws;
 
-    this.ws.onopen = () => {
+    ws.onopen = () => {
+      if (this.ws !== ws) return;
       this.reconnectAttempts = 0;
       this.setStatus('open');
     };
 
-    this.ws.onmessage = (event) => {
+    ws.onmessage = (event) => {
+      if (this.ws !== ws) return;
       if (typeof event.data === 'string') {
         this.messageHandler?.(event.data);
       }
     };
 
-    this.ws.onclose = () => {
+    ws.onclose = () => {
+      if (this.ws !== ws) return;
+      this.ws = null;
       this.setStatus('closed');
       if (!this.manualClose) {
         this.scheduleReconnect();
       }
     };
 
-    this.ws.onerror = () => {
+    ws.onerror = () => {
       // onclose will handle reconnect
     };
   }
 
+  /** Tear down without auto-reconnect; status becomes closed. */
   disconnect(): void {
     this.manualClose = true;
     this.clearReconnectTimer();
-    this.ws?.close();
-    this.ws = null;
+    this.teardownSocket();
     this.setStatus('closed');
+  }
+
+  /**
+   * User-initiated reconnect: skip flashing `closed` so the disconnect
+   * banner does not cause a layout jump. Goes straight to connecting.
+   */
+  reconnect(): void {
+    this.manualClose = true;
+    this.clearReconnectTimer();
+    this.reconnectAttempts = 0;
+    this.teardownSocket();
+    this.connect();
   }
 
   send(message: ClientMessage): boolean {
@@ -82,6 +102,24 @@ export class WebSocketClient {
     if (this.ws.readyState === WebSocket.CONNECTING) return 'connecting';
     if (this.ws.readyState === WebSocket.OPEN) return 'open';
     return 'closed';
+  }
+
+  private teardownSocket(): void {
+    const ws = this.ws;
+    this.ws = null;
+    if (!ws) return;
+
+    ws.onopen = null;
+    ws.onmessage = null;
+    ws.onerror = null;
+    ws.onclose = null;
+
+    if (
+      ws.readyState === WebSocket.OPEN ||
+      ws.readyState === WebSocket.CONNECTING
+    ) {
+      ws.close();
+    }
   }
 
   private scheduleReconnect(): void {

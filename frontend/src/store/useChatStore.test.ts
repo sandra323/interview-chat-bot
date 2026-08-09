@@ -5,11 +5,7 @@ describe('useChatStore', () => {
   beforeEach(() => {
     useChatStore.setState({
       messages: [],
-      config: {
-        apiUrl: 'https://api.openai.com/v1/chat/completions',
-        apiKey: 'sk-test',
-        model: 'gpt-4o-mini',
-      },
+      model: 'deepseek-v4-flash',
       ui: { loading: false, error: null, connectionStatus: 'closed' },
       _hasHydrated: true,
     });
@@ -22,15 +18,15 @@ describe('useChatStore', () => {
     expect(useChatStore.getState().messages[0].content).toBe('Hello');
   });
 
-  it('clearChat empties messages but keeps config', () => {
+  it('clearChat empties messages but keeps model', () => {
     useChatStore.getState().addMessage(createMessage('user', 'Hi'));
     useChatStore.getState().clearChat();
     expect(useChatStore.getState().messages).toHaveLength(0);
-    expect(useChatStore.getState().config.apiKey).toBe('sk-test');
+    expect(useChatStore.getState().model).toBe('deepseek-v4-flash');
   });
 
-  it('setConfig updates config', () => {
-    useChatStore.getState().setConfig({ model: 'gpt-4' });
-    expect(useChatStore.getState().config.model).toBe('gpt-4');
+  it('setModel updates model', () => {
+    useChatStore.getState().setModel('deepseek-v4-pro');
+    expect(useChatStore.getState().model).toBe('deepseek-v4-pro');
   });
 });

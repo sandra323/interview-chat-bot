@@ -1,11 +1,6 @@
 import { create } from 'zustand';
 import { persist } from 'zustand/middleware';
-import type { Config, ConnectionStatus, Message } from '@ai-chat/shared';
-import {
-  DEEPSEEK_API_KEY,
-  DEEPSEEK_API_URL,
-  DEFAULT_MODEL,
-} from '@/config/app';
+import { DEFAULT_MODEL_ID, type ConnectionStatus, type Message } from '@ai-chat/shared';
 
 interface UIState {
   loading: boolean;
@@ -15,12 +10,13 @@ interface UIState {
 
 interface ChatState {
   messages: Message[];
-  config: Config;
+  /** Allowlisted model preference only — never stores API keys */
+  model: string;
   ui: UIState;
   _hasHydrated: boolean;
   addMessage: (message: Message) => void;
   updateMessage: (id: string, updates: Partial<Message>) => void;
-  setConfig: (config: Partial<Config>) => void;
+  setModel: (model: string) => void;
   setLoading: (loading: boolean) => void;
   setError: (error: string | null) => void;
   setConnectionStatus: (status: ConnectionStatus) => void;
@@ -28,17 +24,30 @@ interface ChatState {
   setHasHydrated: (value: boolean) => void;
 }
 
-const defaultConfig: Config = {
-  apiUrl: DEEPSEEK_API_URL,
-  apiKey: DEEPSEEK_API_KEY,
-  model: DEFAULT_MODEL,
-};
+/** Drop older persist blobs that may have contained plaintext apiKey */
+function scrubLegacyPersistedSecrets(): void {
+  try {
+    for (const key of [
+      'ai-chat-state',
+      'ai-chat-state-v3',
+      'ai-chat-state-v4',
+      'ai-chat-api-key-session',
+    ]) {
+      localStorage.removeItem(key);
+      sessionStorage.removeItem(key);
+    }
+  } catch {
+    // ignore
+  }
+}
+
+scrubLegacyPersistedSecrets();
 
 export const useChatStore = create<ChatState>()(
   persist(
     (set) => ({
       messages: [],
-      config: defaultConfig,
+      model: DEFAULT_MODEL_ID,
       ui: {
         loading: false,
         error: null,
@@ -56,10 +65,7 @@ export const useChatStore = create<ChatState>()(
           ),
         })),
 
-      setConfig: (config) =>
-        set((state) => ({
-          config: { ...state.config, ...config },
-        })),
+      setModel: (model) => set({ model }),
 
       setLoading: (loading) =>
         set((state) => ({
@@ -81,35 +87,13 @@ export const useChatStore = create<ChatState>()(
       setHasHydrated: (value) => set({ _hasHydrated: value }),
     }),
     {
-      // bump when default provider/model changes so stale localStorage is dropped
-      name: 'ai-chat-state-v3',
+      name: 'ai-chat-state-v5',
       partialize: (state) => ({
         messages: state.messages,
-        config: state.config,
+        model: state.model,
       }),
       onRehydrateStorage: () => (state) => {
-        if (!state) return;
-        const patch: Partial<Config> = {};
-        if (!state.config.apiKey && DEEPSEEK_API_KEY) {
-          patch.apiKey = DEEPSEEK_API_KEY;
-        }
-        if (
-          !state.config.apiUrl ||
-          state.config.apiUrl.includes('api.openai.com')
-        ) {
-          patch.apiUrl = DEEPSEEK_API_URL;
-        }
-        if (
-          !state.config.model ||
-          state.config.model.startsWith('gpt-') ||
-          state.config.model.startsWith('claude-')
-        ) {
-          patch.model = DEFAULT_MODEL;
-        }
-        if (Object.keys(patch).length > 0) {
-          state.setConfig(patch);
-        }
-        state.setHasHydrated(true);
+        state?.setHasHydrated(true);
       },
     },
   ),

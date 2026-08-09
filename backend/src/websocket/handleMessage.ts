@@ -1,5 +1,7 @@
 import {
   getModelTimeoutMs,
+  isAllowedModelId,
+  resolveAllowedModel,
   type ClientMessage,
   type ServerMessage,
 } from '@ai-chat/shared';
@@ -8,6 +10,10 @@ import type { ConnectionManager } from './connectionManager.js';
 import { OpenAICompatibleAdapter } from '../adapters/openaiCompatible.js';
 import { RateLimiter } from '../utils/rateLimiter.js';
 import { logger } from '../utils/logger.js';
+import {
+  buildLlmConfig,
+  readServerEnv,
+} from '../config/env.js';
 
 const adapter = new OpenAICompatibleAdapter();
 const rateLimiter = new RateLimiter(10, 60_000);
@@ -23,6 +29,11 @@ function parseClientMessage(raw: string): ClientMessage | null {
   try {
     const parsed = JSON.parse(raw) as unknown;
     if (!parsed || typeof parsed !== 'object' || !('type' in parsed)) {
+      return null;
+    }
+    const msg = parsed as Record<string, unknown>;
+    // Reject legacy payloads that tried to smuggle credentials
+    if ('config' in msg || 'apiKey' in msg) {
       return null;
     }
     return parsed as ClientMessage;
@@ -60,18 +71,30 @@ async function handleChatMessage(
   message: Extract<ClientMessage, { type: 'chat' }>,
   connection: ConnectionState,
 ): Promise<void> {
-  const { content, config } = message;
-
-  if (!config?.apiUrl || !config?.apiKey) {
+  const env = readServerEnv();
+  if (!env.llmApiKey) {
     sendMessage(connection.ws, {
       type: 'error',
       code: 'INVALID_CONFIG',
-      message: '哎呀，还没配置好 API 信息，请先在设置里填完整',
+      message: '哎呀，服务端还没配置好模型密钥，请联系管理员',
     });
     return;
   }
 
-  const trimmedContent = content?.trim() ?? '';
+  // Clients may only pick from the allowlist; unknown → default (no arbitrary model injection)
+  if (message.model !== undefined && !isAllowedModelId(message.model)) {
+    sendMessage(connection.ws, {
+      type: 'error',
+      code: 'INVALID_MESSAGE',
+      message: '哎呀，这个模型暂时不可用，请换一个再试',
+    });
+    return;
+  }
+
+  const model = resolveAllowedModel(message.model ?? env.defaultModel);
+  const config = buildLlmConfig(env, model);
+
+  const trimmedContent = message.content?.trim() ?? '';
   if (!trimmedContent) {
     sendMessage(connection.ws, {
       type: 'error',
@@ -131,6 +154,7 @@ async function handleChatMessage(
     logger.info('LLM call succeeded', {
       connectionId: connection.connectionId,
       durationMs: Date.now() - startTime,
+      model: config.model,
     });
   } catch (error) {
     const errorMessage =
@@ -142,9 +166,7 @@ async function handleChatMessage(
 
     sendMessage(connection.ws, {
       type: 'error',
-      code: errorCode as ServerMessage extends { type: 'error' }
-        ? ServerMessage['code']
-        : never,
+      code: errorCode as Extract<ServerMessage, { type: 'error' }>['code'],
       message: errorMessage,
     });
 

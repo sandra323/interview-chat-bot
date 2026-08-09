@@ -11,13 +11,13 @@ export const MOCK_INITIAL_MESSAGES: Message[] = [
   createMessage('user', '那我现在不用配置 API Key 也能试吗？'),
   createMessage(
     'assistant',
-    '对的。当前已开启 mock 模式，所有回复都是本地模拟数据。联调真实 API 时，把 config/app.ts 里的 USE_MOCK 改回 false 即可。',
+    '对的。当前已开启 mock 模式，所有回复都是本地模拟数据。联调真实 API 时，把 config/app.ts 里的 USE_MOCK 改回 false，并在后端 .env.local 配置 DEEPSEEK_API_KEY。',
   ),
 ];
 
 const MOCK_REPLIES = [
   '这是 mock 模式的模拟回复。你的消息已成功收到！',
-  '静态预览运行正常。界面包含消息列表、输入框、Loading 动画和配置面板。',
+  '静态预览运行正常。界面包含消息列表、输入框和 Loading 动画。',
   'Mock 模式下不会发起真实的网络请求，可以放心查看 UI 效果。',
   '收到：「{input}」\n\n（以上为 mock 数据，非真实 LLM 回复）',
 ];
@@ -26,12 +26,4 @@ export function generateMockReply(userInput: string): string {
   const template =
     MOCK_REPLIES[Math.floor(Math.random() * MOCK_REPLIES.length)];
   return template.replace('{input}', userInput);
-}
-
-export function getMockConfig() {
-  return {
-    apiUrl: 'https://api.openai.com/v1/chat/completions',
-    apiKey: 'sk-mock-key-for-preview',
-    model: 'gpt-4o-mini',
-  };
 }

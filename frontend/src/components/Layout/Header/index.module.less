@@ -1,15 +1,34 @@
+.affix {
+  width: 100%;
+  flex-shrink: 0;
+  z-index: 100;
+  margin: 0;
+  padding: 0;
+  line-height: normal;
+
+  :global(.ant-affix) {
+    width: 100% !important;
+    top: 0 !important;
+    left: 0 !important;
+    z-index: 100;
+  }
+}
+
 .header {
   display: flex;
   align-items: center;
   gap: 12px;
+  width: 100%;
+  margin: 0;
   padding: 12px 16px;
   border-bottom: 1px solid var(--color-border);
-  background: var(--color-background);
-  flex-shrink: 0;
+  background: var(--color-sidebar);
+  box-sizing: border-box;
 }
 
 .iconBtn {
   color: var(--color-muted-foreground) !important;
+  flex-shrink: 0;
 }
 
 .iconBtn:hover {
@@ -17,16 +36,41 @@
   color: var(--color-foreground) !important;
 }
 
+.brand {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-shrink: 0;
+
+  > span {
+    border-radius: 6px;
+  }
+}
+
+.brandName {
+  font-size: 14px;
+  font-weight: 600;
+  letter-spacing: -0.01em;
+  color: var(--color-foreground);
+}
+
+.mockBadge {
+  margin-inline-end: 0;
+  font-family: var(--font-mono);
+  font-size: 11px;
+}
+
 .titleBlock {
   flex: 1;
   min-width: 0;
   display: flex;
-  align-items: center;
-  gap: 8px;
+  justify-content: center;
+  padding: 0 8px;
 }
 
 .title {
   margin: 0;
+  max-width: 100%;
   font-size: 14px;
   font-weight: 500;
   color: #d1d5db;
@@ -39,12 +83,6 @@
   margin: 0;
   font-size: 14px;
   color: var(--color-text-tertiary);
-}
-
-.mockBadge {
-  margin-inline-end: 0;
-  font-family: var(--font-mono);
-  font-size: 11px;
 }
 
 .actions {
@@ -62,6 +100,7 @@
   font-family: var(--font-mono) !important;
   font-size: 11px !important;
   background: transparent !important;
+  border-color: var(--color-border) !important;
 }
 
 .modelOption {

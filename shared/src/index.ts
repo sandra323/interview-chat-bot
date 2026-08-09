@@ -11,3 +11,10 @@ export {
   MODEL_TIMEOUT_MS,
   getModelTimeoutMs,
 } from './config/timeouts.js';
+export {
+  ALLOWED_MODEL_IDS,
+  DEFAULT_MODEL_ID,
+  isAllowedModelId,
+  resolveAllowedModel,
+  type AllowedModelId,
+} from './config/models.js';

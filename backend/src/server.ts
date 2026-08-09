@@ -5,22 +5,46 @@ import { WebSocketServer } from 'ws';
 import { ConnectionManager } from './websocket/connectionManager.js';
 import { handleMessage } from './websocket/handleMessage.js';
 import { logger } from './utils/logger.js';
+import type { ServerEnv } from './config/env.js';
 
-export function createApp(): express.Application {
+export function createApp(env: ServerEnv): express.Application {
   const app = express();
 
-  app.use(cors());
-  app.use(express.json());
+  // Dev: reflect request origin if unset. Prod: require explicit CORS_ORIGIN.
+  const corsOptions =
+    env.nodeEnv === 'production'
+      ? {
+          origin: env.corsOrigin?.split(',').map((s) => s.trim()) ?? false,
+          credentials: true,
+        }
+      : env.corsOrigin
+        ? {
+            origin: env.corsOrigin.split(',').map((s) => s.trim()),
+            credentials: true,
+          }
+        : undefined;
+
+  app.use(cors(corsOptions));
+  app.use(express.json({ limit: '32kb' }));
 
   app.get('/health', (_req, res) => {
-    res.json({ status: 'ok', uptime: process.uptime() });
+    res.json({
+      status: 'ok',
+      uptime: process.uptime(),
+      llmConfigured: Boolean(env.llmApiKey),
+    });
   });
 
   return app;
 }
 
 export function attachWebSocketServer(server: Server): WebSocketServer {
-  const wss = new WebSocketServer({ server, path: '/ws', maxPayload: 1024 * 1024 });
+  const wss = new WebSocketServer({
+    server,
+    path: '/ws',
+    // Chat frames are text-only now; keep payload small
+    maxPayload: 64 * 1024,
+  });
   const connectionManager = new ConnectionManager();
 
   wss.on('connection', (ws) => {

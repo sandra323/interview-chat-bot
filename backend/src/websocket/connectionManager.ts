@@ -24,6 +24,10 @@ export class ConnectionManager {
   }
 
   removeConnection(connectionId: string): void {
+    const state = this.connections.get(connectionId);
+    if (state) {
+      state.messages = [];
+    }
     this.connections.delete(connectionId);
   }
 

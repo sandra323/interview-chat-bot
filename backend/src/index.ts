@@ -1,15 +1,33 @@
 import { createServer } from 'http';
+import {
+  assertLlmCredentials,
+  loadEnvFiles,
+  readServerEnv,
+} from './config/env.js';
 import { createApp, attachWebSocketServer, setupGracefulShutdown } from './server.js';
 import { logger } from './utils/logger.js';
 
-const PORT = Number(process.env.PORT) || 3001;
+loadEnvFiles();
 
-const app = createApp();
+const env = readServerEnv();
+
+try {
+  assertLlmCredentials(env);
+} catch (error) {
+  logger.error(error instanceof Error ? error.message : 'Invalid LLM env');
+  process.exit(1);
+}
+
+const app = createApp(env);
 const server = createServer(app);
 const wss = attachWebSocketServer(server);
 
 setupGracefulShutdown(server, wss);
 
-server.listen(PORT, () => {
-  logger.info(`Server listening on port ${PORT}`);
+server.listen(env.port, () => {
+  logger.info(`Server listening on port ${env.port}`, {
+    defaultModel: env.defaultModel,
+    llmApiUrl: env.llmApiUrl,
+    // never log api key
+  });
 });

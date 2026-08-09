@@ -1,9 +1,6 @@
-import { Button, Modal, Select, Tag } from 'antd';
-import {
-  ClearOutlined,
-  MenuOutlined,
-  SettingOutlined,
-} from '@ant-design/icons';
+import { Affix, Button, Modal, Select, Tag } from 'antd';
+import { ClearOutlined, MenuOutlined } from '@ant-design/icons';
+import CatBotIcon from '@/components/CatBotIcon';
 import { MODEL_OPTIONS } from '@/config/models';
 import styles from './index.module.less';
 
@@ -12,7 +9,6 @@ interface HeaderProps {
   model: string;
   onModelChange: (model: string) => void;
   onToggleSidebar: () => void;
-  onToggleSettings: () => void;
   onClearChat: () => void;
   showMockBadge?: boolean;
 }
@@ -22,7 +18,6 @@ export default function Header({
   model,
   onModelChange,
   onToggleSidebar,
-  onToggleSettings,
   onClearChat,
   showMockBadge = false,
 }: HeaderProps) {
@@ -45,66 +40,66 @@ export default function Header({
       ];
 
   return (
-    <header className={styles.header}>
-      <Button
-        type="text"
-        icon={<MenuOutlined />}
-        onClick={onToggleSidebar}
-        className={styles.iconBtn}
-        aria-label="Toggle sidebar"
-      />
-
-      <div className={styles.titleBlock}>
-        {title ? (
-          <p className={styles.title}>{title}</p>
-        ) : (
-          <p className={styles.titleMuted}>新建对话</p>
-        )}
-        {showMockBadge && (
-          <Tag color="processing" className={styles.mockBadge}>
-            Mock 预览
-          </Tag>
-        )}
-      </div>
-
-      <div className={styles.actions}>
-        <Select
-          value={model}
-          onChange={onModelChange}
-          className={styles.modelSelect}
-          popupMatchSelectWidth={240}
-          optionLabelProp="label"
-          options={selectOptions}
-          optionRender={(option) => {
-            const badge = MODEL_OPTIONS.find(
-              (m) => m.id === option.value,
-            )?.badge;
-            return (
-              <div className={styles.modelOption}>
-                <span className={styles.modelDot} />
-                <span className={styles.modelLabel}>{option.label}</span>
-                {badge ? (
-                  <Tag className={styles.modelBadge}>{badge}</Tag>
-                ) : null}
-              </div>
-            );
-          }}
-        />
+    <Affix offsetTop={0} className={styles.affix}>
+      <header className={styles.header}>
         <Button
           type="text"
-          icon={<SettingOutlined />}
-          onClick={onToggleSettings}
+          icon={<MenuOutlined />}
+          onClick={onToggleSidebar}
           className={styles.iconBtn}
-          aria-label="Toggle settings panel"
+          aria-label="Toggle sidebar"
         />
-        <Button
-          type="text"
-          icon={<ClearOutlined />}
-          onClick={handleClear}
-          className={styles.iconBtn}
-          aria-label="Clear chat history"
-        />
-      </div>
-    </header>
+
+        <div className={styles.brand}>
+          <CatBotIcon size={22} />
+          <span className={styles.brandName}>NeuralChat</span>
+          {showMockBadge && (
+            <Tag color="processing" className={styles.mockBadge}>
+              Mock 预览
+            </Tag>
+          )}
+        </div>
+
+        <div className={styles.titleBlock}>
+          {title ? (
+            <p className={styles.title}>{title}</p>
+          ) : (
+            <p className={styles.titleMuted}>新建对话</p>
+          )}
+        </div>
+
+        <div className={styles.actions}>
+          <Select
+            value={model}
+            onChange={onModelChange}
+            className={styles.modelSelect}
+            popupMatchSelectWidth={240}
+            optionLabelProp="label"
+            options={selectOptions}
+            optionRender={(option) => {
+              const badge = MODEL_OPTIONS.find(
+                (m) => m.id === option.value,
+              )?.badge;
+              return (
+                <div className={styles.modelOption}>
+                  <span className={styles.modelDot} />
+                  <span className={styles.modelLabel}>{option.label}</span>
+                  {badge ? (
+                    <Tag className={styles.modelBadge}>{badge}</Tag>
+                  ) : null}
+                </div>
+              );
+            }}
+          />
+          <Button
+            type="text"
+            icon={<ClearOutlined />}
+            onClick={handleClear}
+            className={styles.iconBtn}
+            aria-label="Clear chat history"
+          />
+        </div>
+      </header>
+    </Affix>
   );
 }

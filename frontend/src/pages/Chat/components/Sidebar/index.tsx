@@ -1,6 +1,5 @@
 import { Button } from 'antd';
 import { PlusOutlined } from '@ant-design/icons';
-import CatBotIcon from '@/components/CatBotIcon';
 import styles from './index.module.less';
 
 interface SidebarProps {
@@ -29,13 +28,6 @@ export default function Sidebar({
       aria-hidden={!open}
     >
       <div className={styles.inner}>
-        <div className={styles.brand}>
-          <div className={styles.logoWell}>
-            <CatBotIcon size={30} />
-          </div>
-          <span className={styles.brandName}>Cat Bot</span>
-        </div>
-
         <div className={styles.newChatWrap}>
           <Button
             block

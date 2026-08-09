@@ -79,7 +79,7 @@ function MarkdownContent({ text }: { text: string }) {
 
 export default function MessageBubble({ message }: MessageBubbleProps) {
   const isUser = message.role === 'user';
-  const model = useChatStore((s) => s.config.model);
+  const model = useChatStore((s) => s.model);
   const modelLabel =
     MODEL_OPTIONS.find((m) => m.id === model)?.label ?? model;
 

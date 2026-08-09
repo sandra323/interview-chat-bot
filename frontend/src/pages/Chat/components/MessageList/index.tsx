@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useState, type RefObject } from 'react';
 import { Button } from 'antd';
 import type { Message } from '@ai-chat/shared';
 import CatBotIcon from '@/components/CatBotIcon';
@@ -11,39 +11,39 @@ import styles from './index.module.less';
 interface MessageListProps {
   messages: Message[];
   loading: boolean;
-  hasConfig: boolean;
   modelLabel: string;
   onSuggestion: (text: string) => void;
+  /** Chat-only scroll container (sidebar stays fixed) */
+  scrollContainerRef: RefObject<HTMLDivElement>;
 }
 
 export default function MessageList({
   messages,
   loading,
-  hasConfig,
   modelLabel,
   onSuggestion,
+  scrollContainerRef,
 }: MessageListProps) {
-  const containerRef = useRef<HTMLDivElement>(null);
   const [showScrollBtn, setShowScrollBtn] = useState(false);
 
   const handleScroll = useCallback(() => {
-    const container = containerRef.current;
+    const container = scrollContainerRef.current;
     if (!container) return;
     setShowScrollBtn(!isNearBottom(container));
-  }, []);
+  }, [scrollContainerRef]);
 
   useEffect(() => {
-    const container = containerRef.current;
+    const container = scrollContainerRef.current;
     if (!container) return;
 
     if (isNearBottom(container) || messages.length <= 1) {
       scrollToBottom(container);
       setShowScrollBtn(false);
     }
-  }, [messages, loading]);
+  }, [messages, loading, scrollContainerRef]);
 
   const scrollToBottomClick = () => {
-    const container = containerRef.current;
+    const container = scrollContainerRef.current;
     if (container) {
       scrollToBottom(container);
       setShowScrollBtn(false);
@@ -52,7 +52,12 @@ export default function MessageList({
 
   if (messages.length === 0) {
     return (
-      <div className={styles.empty} role="log" aria-label="Chat messages">
+      <div
+        ref={scrollContainerRef}
+        className={styles.empty}
+        role="log"
+        aria-label="Chat messages"
+      >
         <div className={styles.emptyInner}>
           <div className={styles.emptyLogo}>
             <CatBotIcon size={44} />
@@ -61,11 +66,6 @@ export default function MessageList({
           <p className={styles.emptySubtitle}>
             基于 {modelLabel} · 支持多轮对话
           </p>
-          {!hasConfig && (
-            <p className={styles.emptyHint}>
-              请先在设置中配置 API，再开始对话。
-            </p>
-          )}
           <div className={styles.suggestions}>
             {SUGGESTIONS.map((text) => (
               <button
@@ -73,7 +73,7 @@ export default function MessageList({
                 type="button"
                 className={styles.suggestion}
                 onClick={() => onSuggestion(text)}
-                disabled={!hasConfig || loading}
+                disabled={loading}
               >
                 {text}
               </button>
@@ -87,7 +87,7 @@ export default function MessageList({
   return (
     <>
       <div
-        ref={containerRef}
+        ref={scrollContainerRef}
         className={styles.list}
         onScroll={handleScroll}
         role="log"

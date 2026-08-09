@@ -6,11 +6,7 @@ import { parseServerMessage } from '@/apis/websocket/messageParser';
 import { sendChatMessage } from '@/apis/websocket/chat';
 import { WebSocketClient } from '@/apis/websocket/client';
 import { createMessage, useChatStore } from '@/store/useChatStore';
-import {
-  getWebSocketUrl,
-  isConfigComplete,
-  isValidMessage,
-} from '@/utils/validators';
+import { getWebSocketUrl, isValidMessage } from '@/utils/validators';
 
 function seedMockMessages(): void {
   if (useChatStore.getState().messages.length === 0) {
@@ -118,23 +114,19 @@ function useRealChatService() {
       const trimmed = text.trim();
       if (!isValidMessage(trimmed)) return false;
 
-      const currentConfig = useChatStore.getState().config;
-      if (!isConfigComplete(currentConfig)) {
-        setError('哎呀，还没配置好 API 信息，请先在设置里填完整');
+      const client = clientRef.current;
+      if (!client || client.getStatus() !== 'open') {
+        setError('哎呀，还没连上服务器，请先启动后端');
         return false;
       }
 
-      const client = clientRef.current;
-      if (!client || client.getStatus() !== 'open') {
-        setError('哎呀，还没连上服务器，请先启动后端并点击「保存并重连」');
-        return false;
-      }
+      const model = useChatStore.getState().model;
 
       addMessage(createMessage('user', trimmed));
       setLoading(true);
       setError(null);
 
-      const sent = sendChatMessage(client, trimmed, currentConfig);
+      const sent = sendChatMessage(client, trimmed, model);
       if (!sent) {
         setLoading(false);
         setError('哎呀，消息没发出去，请检查连接后再试');
@@ -148,10 +140,7 @@ function useRealChatService() {
 
   const reconnect = useCallback(() => {
     setError(null);
-    const client = clientRef.current;
-    if (!client) return;
-    client.disconnect();
-    client.connect();
+    clientRef.current?.reconnect();
   }, [setError]);
 
   return { sendMessage, reconnect };
