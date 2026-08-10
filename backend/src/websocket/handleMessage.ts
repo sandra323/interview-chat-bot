@@ -83,6 +83,14 @@ function handleHello(
   connection: ConnectionState,
 ): void {
   const store = getChatStore();
+
+  // No conversationId → unbind for a blank new chat; do NOT create an empty row
+  if (!message.conversationId) {
+    connection.conversationId = null;
+    sendMessage(connection.ws, { type: 'session', conversationId: null });
+    return;
+  }
+
   const conversationId = store.ensureConversation(message.conversationId);
   connection.conversationId = conversationId;
   sendMessage(connection.ws, { type: 'session', conversationId });

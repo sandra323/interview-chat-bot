@@ -35,7 +35,8 @@ export type ClientMessage =
 
 export type ServerMessage =
   | { type: 'connected'; connectionId: string }
-  | { type: 'session'; conversationId: string }
+  /** Bound conversation, or null when the client reset to a blank new chat */
+  | { type: 'session'; conversationId: string | null }
   | {
       type: 'reply';
       content: string;

@@ -7,6 +7,7 @@ import Main from '@/components/Layout/Main';
 import ConnectionBanner from '@/components/ConnectionBanner';
 import { useChatService } from '@/hooks/useChatService';
 import { useChatStore } from '@/store/useChatStore';
+import { truncateConversationTitle } from '@/utils/conversationTitle';
 import MessageList from './components/MessageList';
 import ChatInput from './components/ChatInput';
 import Sidebar from './components/Sidebar';
@@ -14,14 +15,33 @@ import styles from './index.module.less';
 
 export default function ChatPage() {
   const [sidebarOpen, setSidebarOpen] = useState(true);
+  const [historyRefreshKey, setHistoryRefreshKey] = useState(0);
   const chatScrollRef = useRef<HTMLDivElement>(null);
-  const { sendMessage, stopGeneration, clearConversation } = useChatService();
+  const wasGeneratingRef = useRef(false);
+  const skipInitialConvRefreshRef = useRef(true);
+  const {
+    sendMessage,
+    stopGeneration,
+    clearConversation,
+    switchConversation,
+    loadOlderMessages,
+  } = useChatService();
 
   const messages = useChatStore((s) => s.messages);
+  const conversationId = useChatStore((s) => s.conversationId);
+  const conversationTitle = useChatStore((s) => s.conversationTitle);
   const model = useChatStore((s) => s.model);
   const ui = useChatStore((s) => s.ui);
+  const history = useChatStore((s) => s.history);
+  const generatingConversationIds = useChatStore(
+    (s) => s.generatingConversationIds,
+  );
+  const hasHydrated = useChatStore((s) => s._hasHydrated);
   const setModel = useChatStore((s) => s.setModel);
   const setError = useChatStore((s) => s.setError);
+  const syncGeneratingFromServer = useChatStore(
+    (s) => s.syncGeneratingFromServer,
+  );
 
   useEffect(() => {
     if (!ui.error) return;
@@ -37,8 +57,16 @@ export default function ChatPage() {
   );
 
   const handleNewChat = useCallback(() => {
+    if (messages.length === 0) return;
     clearConversation();
-  }, [clearConversation]);
+  }, [clearConversation, messages.length]);
+
+  const handleSelectConversation = useCallback(
+    (id: string, title: string) => {
+      void switchConversation(id, title);
+    },
+    [switchConversation],
+  );
 
   const handleSuggestion = useCallback(
     (text: string) => {
@@ -47,6 +75,20 @@ export default function ChatPage() {
     [sendMessage],
   );
 
+  const handleGeneratingSync = useCallback(
+    (serverGeneratingIds: string[]) => {
+      const { conversationId: activeId, getPendingAssistant } =
+        useChatStore.getState();
+      const merged = new Set(serverGeneratingIds);
+      if (activeId && getPendingAssistant()) {
+        merged.add(activeId);
+      }
+      syncGeneratingFromServer([...merged]);
+    },
+    [syncGeneratingFromServer],
+  );
+
+  // Stop / generating UI only for the *current* conversation
   const isGenerating = useMemo(
     () =>
       ui.loading ||
@@ -54,34 +96,58 @@ export default function ChatPage() {
     [messages, ui.loading],
   );
 
-  const isInputDisabled = !USE_MOCK && ui.connectionStatus !== 'open';
+  // Refresh sidebar only when a reply finishes (not on every mount)
+  useEffect(() => {
+    if (wasGeneratingRef.current && !isGenerating) {
+      setHistoryRefreshKey((k) => k + 1);
+    }
+    wasGeneratingRef.current = isGenerating;
+  }, [isGenerating]);
+
+  // Refresh when conversation changes (new session id / switch / clear).
+  // Wait until persist rehydrate finishes, then skip that first hydrated value
+  // so Sidebar's mount fetch remains the only initial /api/conversations call.
+  useEffect(() => {
+    if (!hasHydrated) return;
+    if (skipInitialConvRefreshRef.current) {
+      skipInitialConvRefreshRef.current = false;
+      return;
+    }
+    setHistoryRefreshKey((k) => k + 1);
+  }, [conversationId, hasHydrated]);
+
+  const isInputDisabled =
+    (!USE_MOCK && ui.connectionStatus !== 'open') || history.loading;
 
   const modelLabel =
     MODEL_OPTIONS.find((m) => m.id === model)?.label ?? model;
 
-  const conversationTitle =
-    messages.length > 0
-      ? messages.find((m) => m.role === 'user')?.content.slice(0, 28) ??
-        '当前会话'
-      : undefined;
+  const conversationTitleDisplay = conversationTitle
+    ? truncateConversationTitle(conversationTitle)
+    : undefined;
 
   return (
     <div className={styles.page}>
       <Header
-        title={conversationTitle}
+        title={conversationTitleDisplay}
         model={model}
         onModelChange={handleModelChange}
         onToggleSidebar={() => setSidebarOpen((v) => !v)}
-        onClearChat={clearConversation}
+        onClearChat={handleNewChat}
         showMockBadge={USE_MOCK}
       />
       {!USE_MOCK && <ConnectionBanner status={ui.connectionStatus} />}
       <div className={styles.body}>
         <Sidebar
           open={sidebarOpen}
-          hasMessages={messages.length > 0}
+          refreshKey={historyRefreshKey}
+          activeConversationId={conversationId}
+          generatingConversationIds={generatingConversationIds}
           modelLabel={modelLabel}
+          newChatDisabled={messages.length === 0}
           onNewChat={handleNewChat}
+          onSelectConversation={handleSelectConversation}
+          onGeneratingSync={handleGeneratingSync}
         />
         <div className={styles.mainColumn}>
           <Main>
@@ -92,6 +158,12 @@ export default function ChatPage() {
                 modelLabel={modelLabel}
                 onSuggestion={handleSuggestion}
                 scrollContainerRef={chatScrollRef}
+                conversationId={conversationId}
+                hasMoreHistory={history.hasMore}
+                loadingOlder={history.loadingMore}
+                onLoadOlder={() => {
+                  void loadOlderMessages();
+                }}
               />
               <ChatInput
                 onSend={sendMessage}

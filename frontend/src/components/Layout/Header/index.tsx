@@ -99,6 +99,7 @@ export default function Header({
             onClick={handleClear}
             className={styles.iconBtn}
             aria-label="Clear chat history"
+            disabled={!title}
           />
         </div>
       </header>

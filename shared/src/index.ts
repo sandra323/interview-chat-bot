@@ -7,6 +7,8 @@ export type {
   ServerMessage,
   ConnectionStatus,
 } from './types/websocket.js';
+export type { ApiResponse, ApiCodeValue } from './types/api.js';
+export { ApiCode } from './types/api.js';
 export {
   DEFAULT_LLM_TIMEOUT_MS,
   MODEL_TIMEOUT_MS,

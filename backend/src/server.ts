@@ -6,8 +6,10 @@ import { ConnectionManager } from './websocket/connectionManager.js';
 import { handleMessage } from './websocket/handleMessage.js';
 import { GenerationRunner } from './generation/generationRunner.js';
 import { getChatStore } from './store/chatStore.js';
+import { sendFail, sendSuccess } from './http/apiResponse.js';
 import { logger } from './utils/logger.js';
 import type { ServerEnv } from './config/env.js';
+import { ApiCode } from '@ai-chat/shared';
 
 export function createApp(env: ServerEnv): express.Application {
   const app = express();
@@ -34,6 +36,68 @@ export function createApp(env: ServerEnv): express.Application {
       uptime: process.uptime(),
       llmConfigured: Boolean(env.llmApiKey),
     });
+  });
+
+  // Sidebar history: list conversations (newest first)
+  app.get('/api/conversations', (_req, res) => {
+    try {
+      const store = getChatStore();
+      const items = store.listConversations();
+      sendSuccess(res, { items });
+    } catch (error) {
+      logger.error('Failed to list conversations', {
+        error: error instanceof Error ? error.message : 'Unknown error',
+      });
+      sendFail(res, {
+        code: ApiCode.INTERNAL_ERROR,
+        msg: '哎呀，历史记录加载失败了，请稍后重试',
+      });
+    }
+  });
+
+  // Conversation messages with page / pageSize (page=1 = newest page)
+  app.get('/api/conversations/:id/messages', (req, res) => {
+    try {
+      const conversationId = req.params.id;
+      const store = getChatStore();
+      if (!store.conversationExists(conversationId)) {
+        sendFail(res, {
+          code: ApiCode.NOT_FOUND,
+          msg: '哎呀，找不到这个会话了',
+        });
+        return;
+      }
+
+      const page = Number(req.query.page ?? 1);
+      const pageSize = Number(req.query.pageSize ?? 10);
+      if (!Number.isFinite(page) || page < 1) {
+        sendFail(res, {
+          code: ApiCode.BAD_REQUEST,
+          msg: '哎呀，页码不对，请换个页码再试',
+          httpStatus: 400,
+        });
+        return;
+      }
+      if (!Number.isFinite(pageSize) || pageSize < 1 || pageSize > 100) {
+        sendFail(res, {
+          code: ApiCode.BAD_REQUEST,
+          msg: '哎呀，每页条数不对，请换个数量再试',
+          httpStatus: 400,
+        });
+        return;
+      }
+
+      const result = store.listMessagesPage(conversationId, page, pageSize);
+      sendSuccess(res, result);
+    } catch (error) {
+      logger.error('Failed to list conversation messages', {
+        error: error instanceof Error ? error.message : 'Unknown error',
+      });
+      sendFail(res, {
+        code: ApiCode.INTERNAL_ERROR,
+        msg: '哎呀，消息加载失败了，请稍后重试',
+      });
+    }
   });
 
   return app;

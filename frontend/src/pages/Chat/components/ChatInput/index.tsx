@@ -1,6 +1,6 @@
 import { useCallback, useState } from 'react';
 import { Button, Input } from 'antd';
-import { SendOutlined, StopOutlined } from '@ant-design/icons';
+import { SendOutlined } from '@ant-design/icons';
 import { isValidMessage } from '@/utils/validators';
 import styles from './index.module.less';
 
@@ -10,6 +10,11 @@ interface ChatInputProps {
   disabled: boolean;
   /** True while waiting for reply_start or streaming */
   isGenerating?: boolean;
+}
+
+/** Solid stop square — antd has no filled-square stop glyph */
+function StopSquareIcon() {
+  return <span className={styles.stopIcon} aria-hidden />;
 }
 
 export default function ChatInput({
@@ -31,6 +36,9 @@ export default function ChatInput({
   }, [onStop]);
 
   const handleKeyDown = (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
+    // IME composition (e.g. Chinese input confirming English) — Enter must not send
+    if (e.nativeEvent.isComposing || e.keyCode === 229) return;
+
     if (e.key === 'Enter' && !e.shiftKey) {
       e.preventDefault();
       if (!isGenerating) handleSend();
@@ -59,7 +67,7 @@ export default function ChatInput({
           <Button
             type="primary"
             shape="default"
-            icon={<StopOutlined />}
+            icon={<StopSquareIcon />}
             onClick={handleStop}
             className={`${styles.sendBtn} ${styles.sendBtnActive}`}
             aria-label="停止生成"

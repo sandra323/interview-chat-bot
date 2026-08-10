@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useRef } from 'react';
-import type { ServerMessage } from '@ai-chat/shared';
+import type { Message, ServerMessage } from '@ai-chat/shared';
 import { USE_MOCK, MOCK_REPLY_DELAY_MS } from '@/config/app';
 import { generateMockReply, MOCK_INITIAL_MESSAGES } from '@/mocks/chatMock';
 import { parseServerMessage } from '@/apis/websocket/messageParser';
@@ -10,11 +10,60 @@ import {
   sendStop,
 } from '@/apis/websocket/chat';
 import { WebSocketClient } from '@/apis/websocket/client';
+import {
+  fetchConversationMessages,
+  HISTORY_PAGE_SIZE,
+  type ConversationMessageItem,
+} from '@/apis/conversations';
 import { createMessage, useChatStore } from '@/store/useChatStore';
 import { getWebSocketUrl, isValidMessage } from '@/utils/validators';
 
 const MOCK_CHUNK_SIZE = 4;
 const MOCK_CHUNK_INTERVAL_MS = 28;
+
+function mapHistoryItem(item: ConversationMessageItem): Message | null {
+  if (item.role !== 'user' && item.role !== 'assistant') return null;
+  return {
+    id: item.id,
+    role: item.role,
+    content: item.content,
+    timestamp: item.createdAt,
+    status: 'sent',
+  };
+}
+
+function mapHistoryItems(items: ConversationMessageItem[]): Message[] {
+  return items
+    .map(mapHistoryItem)
+    .filter((m): m is Message => m !== null);
+}
+
+/**
+ * After persist rehydrate, restore pagination meta so scroll-up can still
+ * fetch older server pages (history.page/hasMore are not persisted).
+ */
+async function syncHistoryPaginationMeta(): Promise<void> {
+  const { conversationId, history, setHistory } = useChatStore.getState();
+  if (!conversationId || history.page > 0) return;
+
+  try {
+    const page = await fetchConversationMessages(conversationId, {
+      page: 1,
+      pageSize: HISTORY_PAGE_SIZE,
+    });
+    if (useChatStore.getState().conversationId !== conversationId) return;
+
+    const localCount = useChatStore.getState().messages.length;
+    setHistory({
+      page: Math.max(1, Math.ceil(localCount / HISTORY_PAGE_SIZE) || 1),
+      hasMore: page.total > localCount,
+      loading: false,
+      loadingMore: false,
+    });
+  } catch {
+    // Non-fatal — user can still chat; older pages may be unavailable until switch
+  }
+}
 
 function seedMockMessages(): void {
   if (useChatStore.getState().messages.length === 0) {
@@ -67,13 +116,15 @@ function resumePendingIfNeeded(client: WebSocketClient): void {
 
   if (conversationId) {
     if (pending) {
+      useChatStore.getState().markConversationGenerating(conversationId);
       sendResume(client, {
         conversationId,
         generationId: pending.id,
         offset: pending.content.length,
       });
     } else {
-      sendHello(client, conversationId);
+      // May still have a background job — catch up if any
+      sendResume(client, { conversationId });
     }
     return;
   }
@@ -85,6 +136,10 @@ function resumePendingIfNeeded(client: WebSocketClient): void {
   }
   sendHello(client);
   void setConversationId;
+}
+
+function isActiveConversation(conversationId: string): boolean {
+  return useChatStore.getState().conversationId === conversationId;
 }
 
 function handleServerMessage(raw: string): void {
@@ -99,6 +154,8 @@ function handleServerMessage(raw: string): void {
     setError,
     setConnectionStatus,
     setConversationId,
+    markConversationGenerating,
+    clearConversationGenerating,
   } = useChatStore.getState();
 
   switch (message.type) {
@@ -106,9 +163,22 @@ function handleServerMessage(raw: string): void {
       setConnectionStatus('open');
       break;
     case 'session':
-      setConversationId(message.conversationId);
+      // null = server unbound for a blank new chat (client already cleared locally)
+      if (message.conversationId === null) {
+        break;
+      }
+      // Only bind when we don't already have a different active conversation
+      // (avoids clobbering a mid-switch view). Prefer explicit client sets.
+      if (
+        !useChatStore.getState().conversationId ||
+        useChatStore.getState().conversationId === message.conversationId
+      ) {
+        setConversationId(message.conversationId);
+      }
       break;
     case 'reply_start': {
+      markConversationGenerating(message.conversationId);
+      if (!isActiveConversation(message.conversationId)) break;
       const existing = useChatStore
         .getState()
         .messages.find((m) => m.id === message.generationId);
@@ -119,15 +189,21 @@ function handleServerMessage(raw: string): void {
       } else {
         updateMessage(message.generationId, { status: 'pending' });
       }
-      setConversationId(message.conversationId);
       setLoading(false);
       setError(null);
       break;
     }
     case 'reply_delta':
+      if (!isActiveConversation(message.conversationId)) break;
       appendMessageContent(message.generationId, message.delta);
       break;
     case 'reply_catchup': {
+      if (message.done) {
+        clearConversationGenerating(message.conversationId);
+      } else {
+        markConversationGenerating(message.conversationId);
+      }
+      if (!isActiveConversation(message.conversationId)) break;
       const msg = useChatStore
         .getState()
         .messages.find((m) => m.id === message.generationId);
@@ -148,13 +224,14 @@ function handleServerMessage(raw: string): void {
           status: message.done ? 'sent' : 'pending',
         });
       }
-      setConversationId(message.conversationId);
       if (message.done) {
         setLoading(false);
       }
       break;
     }
     case 'reply_end':
+      clearConversationGenerating(message.conversationId);
+      if (!isActiveConversation(message.conversationId)) break;
       updateMessage(message.generationId, {
         content: message.content,
         status: 'sent',
@@ -182,6 +259,8 @@ function handleServerMessage(raw: string): void {
       setError(null);
       break;
     case 'generation_error':
+      clearConversationGenerating(message.conversationId);
+      if (!isActiveConversation(message.conversationId)) break;
       setLoading(false);
       setError(message.message);
       {
@@ -216,6 +295,7 @@ function useMockChatService() {
   const timerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const chunkTimerRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const generationIdRef = useRef<string | null>(null);
+  const navEpochRef = useRef(0);
   const { addMessage, setLoading, setError, setConnectionStatus } =
     useChatStore();
 
@@ -255,6 +335,9 @@ function useMockChatService() {
       if (useChatStore.getState().getPendingAssistant()) return false;
 
       addMessage(createMessage('user', trimmed));
+      if (!useChatStore.getState().conversationTitle) {
+        useChatStore.getState().setConversationTitle(trimmed);
+      }
       setLoading(true);
       setError(null);
 
@@ -297,15 +380,110 @@ function useMockChatService() {
   }, [setConnectionStatus, setError]);
 
   const clearConversation = useCallback(() => {
-    stopGeneration();
+    const { conversationId, getPendingAssistant, markConversationGenerating } =
+      useChatStore.getState();
+    // Leave background jobs running so user can switch back later
+    if (conversationId && getPendingAssistant()) {
+      markConversationGenerating(conversationId);
+    }
+    navEpochRef.current += 1;
     useChatStore.getState().clearChat();
-  }, [stopGeneration]);
+  }, []);
 
-  return { sendMessage, stopGeneration, reconnect, clearConversation };
+  const switchConversation = useCallback(async (
+    nextId: string,
+    title?: string,
+  ) => {
+    const { conversationId, history, getPendingAssistant, markConversationGenerating } =
+      useChatStore.getState();
+    if (nextId === conversationId || history.loading) return;
+
+    // Do not stop — keep job running; mark so sidebar shows 生成中
+    if (conversationId && getPendingAssistant()) {
+      markConversationGenerating(conversationId);
+    }
+
+    const epoch = ++navEpochRef.current;
+    useChatStore.getState().setHistory({ loading: true });
+    useChatStore.getState().setError(null);
+    if (title !== undefined) {
+      useChatStore.getState().setConversationTitle(title.trim() || null);
+    }
+
+    try {
+      const page = await fetchConversationMessages(nextId, {
+        page: 1,
+        pageSize: HISTORY_PAGE_SIZE,
+      });
+      if (epoch !== navEpochRef.current) return;
+
+      useChatStore.getState().setConversationId(nextId);
+      useChatStore.getState().setMessages(mapHistoryItems(page.items));
+      useChatStore.getState().setHistory({
+        page: page.page,
+        hasMore: page.hasMore,
+        loading: false,
+        loadingMore: false,
+      });
+      useChatStore.getState().setLoading(false);
+    } catch (error) {
+      if (epoch !== navEpochRef.current) return;
+      useChatStore.getState().setHistory({ loading: false });
+      useChatStore.getState().setError(
+        error instanceof Error
+          ? error.message
+          : '哎呀，消息加载失败了，请稍后重试',
+      );
+    }
+  }, []);
+
+  const loadOlderMessages = useCallback(async () => {
+    const { conversationId, history } = useChatStore.getState();
+    if (!conversationId || !history.hasMore || history.loadingMore || history.loading) {
+      return;
+    }
+
+    const requestedId = conversationId;
+    const nextPage = history.page + 1;
+    useChatStore.getState().setHistory({ loadingMore: true });
+    try {
+      const page = await fetchConversationMessages(requestedId, {
+        page: nextPage,
+        pageSize: HISTORY_PAGE_SIZE,
+      });
+      if (useChatStore.getState().conversationId !== requestedId) {
+        return;
+      }
+      useChatStore.getState().prependMessages(mapHistoryItems(page.items));
+      useChatStore.getState().setHistory({
+        page: page.page,
+        hasMore: page.hasMore,
+        loadingMore: false,
+      });
+    } catch (error) {
+      if (useChatStore.getState().conversationId !== requestedId) return;
+      useChatStore.getState().setHistory({ loadingMore: false });
+      useChatStore.getState().setError(
+        error instanceof Error
+          ? error.message
+          : '哎呀，更早的消息加载失败了，请稍后重试',
+      );
+    }
+  }, []);
+
+  return {
+    sendMessage,
+    stopGeneration,
+    reconnect,
+    clearConversation,
+    switchConversation,
+    loadOlderMessages,
+  };
 }
 
 function useRealChatService() {
   const clientRef = useRef<WebSocketClient | null>(null);
+  const navEpochRef = useRef(0);
   const { addMessage, setLoading, setError, setConnectionStatus } =
     useChatStore();
 
@@ -327,10 +505,14 @@ function useRealChatService() {
       if (client.getStatus() === 'open') {
         resumePendingIfNeeded(client);
       }
+      void syncHistoryPaginationMeta();
     };
     const unsub = useChatStore.persist.onFinishHydration(onHydrated);
-    if (useChatStore.persist.hasHydrated() && client.getStatus() === 'open') {
-      resumePendingIfNeeded(client);
+    if (useChatStore.persist.hasHydrated()) {
+      if (client.getStatus() === 'open') {
+        resumePendingIfNeeded(client);
+      }
+      void syncHistoryPaginationMeta();
     }
 
     return () => {
@@ -342,13 +524,16 @@ function useRealChatService() {
 
   const stopGeneration = useCallback(() => {
     const client = clientRef.current;
-    const { conversationId, getPendingAssistant } = useChatStore.getState();
+    const { conversationId, getPendingAssistant, clearConversationGenerating } =
+      useChatStore.getState();
     const pending = getPendingAssistant();
     if (!client || !conversationId || !pending) {
       finalizePendingAssistant();
+      if (conversationId) clearConversationGenerating(conversationId);
       return false;
     }
     const sent = sendStop(client, conversationId, pending.id);
+    clearConversationGenerating(conversationId);
     // Optimistic local end; reply_end will align
     finalizePendingAssistant();
     return sent;
@@ -366,9 +551,13 @@ function useRealChatService() {
         return false;
       }
 
-      const { model, conversationId } = useChatStore.getState();
+      const { model, conversationId, conversationTitle } =
+        useChatStore.getState();
 
       addMessage(createMessage('user', trimmed));
+      if (!conversationTitle) {
+        useChatStore.getState().setConversationTitle(trimmed);
+      }
       setLoading(true);
       setError(null);
 
@@ -394,18 +583,124 @@ function useRealChatService() {
 
   const clearConversation = useCallback(() => {
     const client = clientRef.current;
-    const { conversationId, getPendingAssistant } = useChatStore.getState();
-    const pending = getPendingAssistant();
-    if (client && conversationId && pending) {
-      sendStop(client, conversationId, pending.id);
+    const { conversationId, getPendingAssistant, markConversationGenerating } =
+      useChatStore.getState();
+    // Keep background generation; only rebind WS to a fresh session
+    if (conversationId && getPendingAssistant()) {
+      markConversationGenerating(conversationId);
     }
+    navEpochRef.current += 1;
     useChatStore.getState().clearChat();
     if (client && client.getStatus() === 'open') {
       sendHello(client);
     }
   }, []);
 
-  return { sendMessage, stopGeneration, reconnect, clearConversation };
+  const switchConversation = useCallback(async (
+    nextId: string,
+    title?: string,
+  ) => {
+    const {
+      conversationId,
+      history,
+      getPendingAssistant,
+      markConversationGenerating,
+    } = useChatStore.getState();
+    if (nextId === conversationId || history.loading) return;
+
+    const client = clientRef.current;
+
+    // Do not stop — leave job running for when the user returns
+    if (conversationId && getPendingAssistant()) {
+      markConversationGenerating(conversationId);
+    }
+
+    const epoch = ++navEpochRef.current;
+    useChatStore.getState().setHistory({ loading: true });
+    useChatStore.getState().setError(null);
+    if (title !== undefined) {
+      useChatStore.getState().setConversationTitle(title.trim() || null);
+    }
+
+    try {
+      const page = await fetchConversationMessages(nextId, {
+        page: 1,
+        pageSize: HISTORY_PAGE_SIZE,
+      });
+      if (epoch !== navEpochRef.current) return;
+
+      useChatStore.getState().setConversationId(nextId);
+      useChatStore.getState().setMessages(mapHistoryItems(page.items));
+      useChatStore.getState().setHistory({
+        page: page.page,
+        hasMore: page.hasMore,
+        loading: false,
+        loadingMore: false,
+      });
+      useChatStore.getState().setLoading(false);
+
+      if (client && client.getStatus() === 'open') {
+        // Bind + catch up any in-flight / finished generation on the target
+        sendResume(client, { conversationId: nextId });
+      }
+    } catch (error) {
+      if (epoch !== navEpochRef.current) return;
+      useChatStore.getState().setHistory({ loading: false });
+      useChatStore.getState().setError(
+        error instanceof Error
+          ? error.message
+          : '哎呀，消息加载失败了，请稍后重试',
+      );
+    }
+  }, []);
+
+  const loadOlderMessages = useCallback(async () => {
+    const { conversationId, history } = useChatStore.getState();
+    if (
+      !conversationId ||
+      !history.hasMore ||
+      history.loadingMore ||
+      history.loading
+    ) {
+      return;
+    }
+
+    const requestedId = conversationId;
+    const nextPage = history.page + 1;
+    useChatStore.getState().setHistory({ loadingMore: true });
+    try {
+      const page = await fetchConversationMessages(requestedId, {
+        page: nextPage,
+        pageSize: HISTORY_PAGE_SIZE,
+      });
+      if (useChatStore.getState().conversationId !== requestedId) {
+        return;
+      }
+      useChatStore.getState().prependMessages(mapHistoryItems(page.items));
+      useChatStore.getState().setHistory({
+        page: page.page,
+        hasMore: page.hasMore,
+        loadingMore: false,
+      });
+    } catch (error) {
+      if (useChatStore.getState().conversationId !== requestedId) return;
+      useChatStore.getState().setHistory({ loadingMore: false });
+      useChatStore.getState().setError(
+        error instanceof Error
+          ? error.message
+          : '哎呀，更早的消息加载失败了，请稍后重试',
+      );
+    }
+  }, []);
+
+  return {
+    sendMessage,
+    stopGeneration,
+    reconnect,
+    clearConversation,
+    switchConversation,
+    loadOlderMessages,
+  };
 }
 
 /** USE_MOCK is a build-time constant — only one branch is used per session. */

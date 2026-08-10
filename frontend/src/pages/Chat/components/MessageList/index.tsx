@@ -1,6 +1,7 @@
 import {
   useCallback,
   useEffect,
+  useLayoutEffect,
   useRef,
   useState,
   type RefObject,
@@ -15,6 +16,7 @@ import TypingIndicator from '../TypingIndicator';
 import styles from './index.module.less';
 
 const STICK_THRESHOLD_PX = 30;
+const LOAD_OLDER_TOP_PX = 80;
 
 interface MessageListProps {
   messages: Message[];
@@ -23,6 +25,11 @@ interface MessageListProps {
   onSuggestion: (text: string) => void;
   /** Chat-only scroll container (sidebar stays fixed) */
   scrollContainerRef: RefObject<HTMLDivElement>;
+  /** Reset stick-to-bottom when switching conversations */
+  conversationId: string | null;
+  hasMoreHistory: boolean;
+  loadingOlder: boolean;
+  onLoadOlder: () => void;
 }
 
 export default function MessageList({
@@ -31,9 +38,47 @@ export default function MessageList({
   modelLabel,
   onSuggestion,
   scrollContainerRef,
+  conversationId,
+  hasMoreHistory,
+  loadingOlder,
+  onLoadOlder,
 }: MessageListProps) {
   const [showScrollBtn, setShowScrollBtn] = useState(false);
   const stickToBottomRef = useRef(true);
+  const prevScrollHeightRef = useRef<number | null>(null);
+  const isPrependingRef = useRef(false);
+
+  // After switching conversation, jump to latest (do not depend on messages.length)
+  useEffect(() => {
+    stickToBottomRef.current = true;
+    isPrependingRef.current = false;
+    prevScrollHeightRef.current = null;
+    setShowScrollBtn(false);
+    const container = scrollContainerRef.current;
+    if (!container || messages.length === 0) return;
+    requestAnimationFrame(() => {
+      scrollToBottom(container);
+    });
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- only on conversation switch
+  }, [conversationId, scrollContainerRef]);
+
+  // Snapshot height when older-page fetch starts; restore after prepend
+  useEffect(() => {
+    const container = scrollContainerRef.current;
+    if (loadingOlder && container) {
+      isPrependingRef.current = true;
+      prevScrollHeightRef.current = container.scrollHeight;
+    }
+  }, [loadingOlder, scrollContainerRef]);
+
+  useLayoutEffect(() => {
+    const container = scrollContainerRef.current;
+    const prevHeight = prevScrollHeightRef.current;
+    if (!container || loadingOlder || prevHeight == null) return;
+    container.scrollTop += container.scrollHeight - prevHeight;
+    prevScrollHeightRef.current = null;
+    isPrependingRef.current = false;
+  }, [messages, loadingOlder, scrollContainerRef]);
 
   const handleScroll = useCallback(() => {
     const container = scrollContainerRef.current;
@@ -41,20 +86,28 @@ export default function MessageList({
     const nearBottom = isNearBottom(container, STICK_THRESHOLD_PX);
     stickToBottomRef.current = nearBottom;
     setShowScrollBtn(!nearBottom);
-  }, [scrollContainerRef]);
+
+    if (
+      container.scrollTop < LOAD_OLDER_TOP_PX &&
+      hasMoreHistory &&
+      !loadingOlder
+    ) {
+      onLoadOlder();
+    }
+  }, [scrollContainerRef, hasMoreHistory, loadingOlder, onLoadOlder]);
 
   useEffect(() => {
     const container = scrollContainerRef.current;
     if (!container) return;
+    // Do not fight scroll restoration while prepending older pages
+    if (isPrependingRef.current || loadingOlder) return;
+    if (!stickToBottomRef.current) return;
 
-    if (stickToBottomRef.current || messages.length <= 1) {
-      requestAnimationFrame(() => {
-        scrollToBottom(container);
-        stickToBottomRef.current = true;
-        setShowScrollBtn(false);
-      });
-    }
-  }, [messages, loading, scrollContainerRef]);
+    requestAnimationFrame(() => {
+      scrollToBottom(container);
+      setShowScrollBtn(false);
+    });
+  }, [messages, loading, loadingOlder, scrollContainerRef]);
 
   const scrollToBottomClick = () => {
     const container = scrollContainerRef.current;
@@ -110,6 +163,11 @@ export default function MessageList({
         aria-live="polite"
       >
         <div className={styles.listInner}>
+          {hasMoreHistory || loadingOlder ? (
+            <p className={styles.loadOlder} aria-live="polite">
+              {loadingOlder ? '加载更早的消息…' : '向上滚动加载更早消息'}
+            </p>
+          ) : null}
           {messages.map((msg) => (
             <MessageBubble key={msg.id} message={msg} />
           ))}
@@ -119,12 +177,12 @@ export default function MessageList({
       {showScrollBtn && (
         <Button
           type="primary"
-          shape="round"
+          shape="circle"
           className={styles.scrollBtn}
           onClick={scrollToBottomClick}
           aria-label="Scroll to bottom"
         >
-          ↓ 新消息
+          ↓
         </Button>
       )}
     </>

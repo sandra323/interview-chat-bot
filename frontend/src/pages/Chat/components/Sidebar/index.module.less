@@ -60,6 +60,13 @@
   font-family: var(--font-mono);
 }
 
+.historyEmpty {
+  margin: 8px;
+  padding: 8px;
+  font-size: 12px;
+  color: var(--color-text-quaternary);
+}
+
 .historyItem {
   display: block;
   width: 100%;
@@ -70,8 +77,12 @@
   border-left: 2px solid transparent;
   border-radius: var(--radius-lg);
   background: transparent;
-  cursor: default;
+  cursor: pointer;
   transition: background 0.15s ease;
+}
+
+.historyItem:hover {
+  background: rgba(255, 255, 255, 0.04);
 }
 
 .historyItemActive {
@@ -80,14 +91,49 @@
   cursor: default;
 }
 
+.historyItemActive:hover {
+  background: var(--color-selected-bg);
+}
+
+.historyTitleRow {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+}
+
 .historyTitle {
   margin: 0;
+  flex: 1;
+  min-width: 0;
   font-size: 12px;
   font-weight: 500;
   color: var(--color-text-secondary);
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
+}
+
+.generatingDot {
+  flex-shrink: 0;
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: var(--color-primary);
+  box-shadow: 0 0 0 0 rgba(59, 130, 246, 0.5);
+  animation: generatingPulse 1.4s ease-out infinite;
+}
+
+@keyframes generatingPulse {
+  0% {
+    box-shadow: 0 0 0 0 rgba(59, 130, 246, 0.45);
+  }
+  70% {
+    box-shadow: 0 0 0 6px rgba(59, 130, 246, 0);
+  }
+  100% {
+    box-shadow: 0 0 0 0 rgba(59, 130, 246, 0);
+  }
 }
 
 .historyItemActive .historyTitle {

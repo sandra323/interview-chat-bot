@@ -22,6 +22,31 @@ export interface GenerationRecord {
   updatedAt: number;
 }
 
+/** Sidebar / history list item */
+export interface ConversationListItem {
+  id: string;
+  title: string;
+  updatedAt: number;
+  /** True when a generation job is still running for this conversation */
+  generating: boolean;
+}
+
+/** Persisted message row for client history APIs */
+export interface StoredMessage {
+  id: string;
+  role: 'user' | 'assistant' | 'system';
+  content: string;
+  createdAt: number;
+}
+
+export interface MessagePageResult {
+  items: StoredMessage[];
+  page: number;
+  pageSize: number;
+  total: number;
+  hasMore: boolean;
+}
+
 export class ChatStore {
   private db: Database.Database;
 
@@ -104,6 +129,82 @@ export class ChatStore {
       .run(Date.now(), conversationId);
   }
 
+  /**
+   * List conversations for the sidebar, newest first.
+   * Title = full first user message (trimmed); empty chats are omitted.
+   * Display truncation belongs on the frontend.
+   */
+  listConversations(limit = 50): ConversationListItem[] {
+    this.pruneEmptyConversations();
+
+    const rows = this.db
+      .prepare(
+        `SELECT
+           c.id AS id,
+           c.updated_at AS updated_at,
+           (
+             SELECT m.content
+             FROM messages m
+             WHERE m.conversation_id = c.id AND m.role = 'user'
+             ORDER BY m.created_at ASC
+             LIMIT 1
+           ) AS first_user_message,
+           EXISTS (
+             SELECT 1 FROM generations g
+             WHERE g.conversation_id = c.id AND g.status = 'running'
+           ) AS generating
+         FROM conversations c
+         WHERE EXISTS (
+             SELECT 1 FROM messages m
+             WHERE m.conversation_id = c.id AND m.role = 'user'
+           )
+            OR EXISTS (
+             SELECT 1 FROM generations g
+             WHERE g.conversation_id = c.id AND g.status = 'running'
+           )
+         ORDER BY c.updated_at DESC
+         LIMIT ?`,
+      )
+      .all(limit) as Array<{
+      id: string;
+      updated_at: number;
+      first_user_message: string | null;
+      generating: number;
+    }>;
+
+    return rows.map((row) => {
+      const raw = row.first_user_message?.trim() ?? '';
+      return {
+        id: row.id,
+        title: raw || '新对话',
+        updatedAt: row.updated_at,
+        generating: Boolean(row.generating),
+      };
+    });
+  }
+
+  /**
+   * Drop orphan conversations with no messages (and no running job).
+   * Only removes rows older than 60s to avoid racing the first chat write.
+   */
+  pruneEmptyConversations(olderThanMs = 60_000): number {
+    const cutoff = Date.now() - olderThanMs;
+    const result = this.db
+      .prepare(
+        `DELETE FROM conversations
+         WHERE updated_at <= ?
+           AND NOT EXISTS (
+             SELECT 1 FROM messages m WHERE m.conversation_id = conversations.id
+           )
+           AND NOT EXISTS (
+             SELECT 1 FROM generations g
+             WHERE g.conversation_id = conversations.id AND g.status = 'running'
+           )`,
+      )
+      .run(cutoff);
+    return result.changes;
+  }
+
   appendMessage(
     conversationId: string,
     role: ChatMessage['role'],
@@ -131,6 +232,67 @@ export class ChatStore {
       )
       .all(conversationId) as Array<{ role: ChatMessage['role']; content: string }>;
     return rows.map((row) => ({ role: row.role, content: row.content }));
+  }
+
+  /**
+   * Paginated messages for the client UI.
+   * page=1 is the newest page; higher pages are older.
+   * Items in each page are returned oldest→newest for rendering.
+   */
+  listMessagesPage(
+    conversationId: string,
+    page = 1,
+    pageSize = 10,
+  ): MessagePageResult {
+    const safePage = Number.isFinite(page) && page >= 1 ? Math.floor(page) : 1;
+    const safeSize =
+      Number.isFinite(pageSize) && pageSize >= 1
+        ? Math.min(Math.floor(pageSize), 100)
+        : 10;
+    const offset = (safePage - 1) * safeSize;
+
+    const totalRow = this.db
+      .prepare(
+        `SELECT COUNT(*) AS total FROM messages
+         WHERE conversation_id = ? AND role IN ('user', 'assistant')`,
+      )
+      .get(conversationId) as { total: number };
+
+    const total = totalRow?.total ?? 0;
+
+    const rows = this.db
+      .prepare(
+        `SELECT id, role, content, created_at
+         FROM messages
+         WHERE conversation_id = ? AND role IN ('user', 'assistant')
+         ORDER BY created_at DESC
+         LIMIT ? OFFSET ?`,
+      )
+      .all(conversationId, safeSize, offset) as Array<{
+      id: string;
+      role: 'user' | 'assistant';
+      content: string;
+      created_at: number;
+    }>;
+
+    // Newest-first query → reverse so UI can append chronologically within the page
+    const items: StoredMessage[] = rows
+      .slice()
+      .reverse()
+      .map((row) => ({
+        id: row.id,
+        role: row.role,
+        content: row.content,
+        createdAt: row.created_at,
+      }));
+
+    return {
+      items,
+      page: safePage,
+      pageSize: safeSize,
+      total,
+      hasMore: offset + rows.length < total,
+    };
   }
 
   createGeneration(conversationId: string, generationId: string): void {
