@@ -1,6 +1,6 @@
 .inputArea {
   flex-shrink: 0;
-  padding: 8px 16px 16px;
+  padding: 0px 16px 16px;
 }
 
 .shell {
@@ -13,6 +13,7 @@
   border-radius: var(--radius-xl);
   border: 1px solid var(--color-border);
   background: var(--color-card);
+  box-shadow: var(--shadow-input);
   transition: border-color 0.15s ease;
 }
 
@@ -23,11 +24,12 @@
 .textarea {
   flex: 1;
   font-size: 14px !important;
-  line-height: 1.625 !important;
+  line-height: 34px !important;
   color: var(--color-foreground) !important;
   caret-color: var(--color-accent);
   padding: 0 !important;
-  min-height: 24px !important;
+  min-height: 34px !important;
+  max-height: 160px !important;
   resize: none !important;
   background: transparent !important;
   border: none !important;
@@ -48,6 +50,9 @@
 
 .textarea :global(textarea) {
   color: var(--color-foreground) !important;
+  line-height: 34px !important;
+  min-height: 34px !important;
+  max-height: 160px !important;
   border: none !important;
   box-shadow: none !important;
   outline: none !important;
