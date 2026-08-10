@@ -143,14 +143,23 @@
 
 /* Fenced code block shell (Streamdown unwraps <pre> into this structure) */
 .streamdown :global([data-streamdown='code-block']) {
+  /* Streamdown 默认 flex-col，需改成横向才能让语言栏和复制按钮同一行 */
+  display: flex !important;
+  flex-direction: row !important;
+  flex-wrap: wrap !important;
+  align-items: center;
+  gap: 0 !important;
   margin: 12px 0;
+  padding: 0 !important;
   border-radius: var(--radius-lg);
   border: 1px solid rgba(255, 255, 255, 0.12);
   background: rgba(15, 23, 42, 0.85);
   overflow: hidden;
 }
 
-.streamdown :global([data-streamdown='code-block'] > div:first-child) {
+.streamdown :global([data-streamdown='code-block-header']) {
+  flex: 1 1 0;
+  min-width: 0;
   display: flex;
   align-items: center;
   height: 22px;
@@ -167,7 +176,56 @@
   border-bottom: 1px solid rgba(255, 255, 255, 0.08);
 }
 
+/* Same row as header (right side); undo Streamdown sticky/-mt utilities */
+.streamdown
+  :global(
+    [data-streamdown='code-block']
+      > div:has(> [data-streamdown='code-block-actions'])
+  ) {
+  flex: 0 0 auto;
+  display: flex;
+  align-items: center;
+  height: 22px;
+  margin: 0 !important;
+  padding: 0 4px;
+  border: none;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+  background: rgba(255, 255, 255, 0.04);
+  position: static !important;
+}
+
+.streamdown :global([data-streamdown='code-block-actions']) {
+  display: flex;
+  align-items: center;
+  padding: 0;
+  border: none;
+  background: transparent;
+  box-shadow: none;
+}
+
+.streamdown :global([data-streamdown='code-block-copy-button']) {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 18px;
+  height: 18px;
+  padding: 0;
+  border: none;
+  border-radius: 3px;
+  color: rgba(148, 163, 184, 0.8);
+  background: transparent;
+  cursor: pointer;
+  transition: color 0.15s ease, background 0.15s ease;
+}
+
+.streamdown :global([data-streamdown='code-block-copy-button']:hover) {
+  color: #e2e8f0;
+  background: rgba(255, 255, 255, 0.08);
+}
+
 .streamdown :global([data-streamdown='code-block-body']) {
+  flex: 1 1 100%;
+  width: 100%;
   margin: 0;
   padding: 12px 14px;
   overflow-x: auto;

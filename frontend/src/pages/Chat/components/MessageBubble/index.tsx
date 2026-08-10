@@ -68,7 +68,7 @@ export default function MessageBubble({ message }: MessageBubbleProps) {
               mode={isPending ? 'streaming' : 'static'}
               parseIncompleteMarkdown
               isAnimating={isPending}
-              controls={false}
+              controls={{ code: { copy: true, download: false } }}
             >
               {message.content}
             </Streamdown>
