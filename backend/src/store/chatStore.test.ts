@@ -95,6 +95,25 @@ describe('ChatStore', () => {
     store.close();
   });
 
+  it('renames conversation without changing list order', async () => {
+    const store = createStore();
+    const older = store.createConversation();
+    store.appendMessage(older, 'user', '旧');
+    const newer = store.createConversation();
+    store.appendMessage(newer, 'user', '新');
+    await new Promise((r) => setTimeout(r, 5));
+    store.touchConversation(newer);
+
+    expect(store.renameConversation(newer, '自定义标题')).toBe(true);
+    const list = store.listConversations();
+    expect(list[0].id).toBe(newer);
+    expect(list[0].title).toBe('自定义标题');
+    expect(list[1].title).toBe('旧');
+    expect(store.deleteConversation(older)).toBe(true);
+    expect(store.conversationExists(older)).toBe(false);
+    store.close();
+  });
+
   it('prunes stale empty conversations', () => {
     const store = createStore();
     const empty = store.createConversation();

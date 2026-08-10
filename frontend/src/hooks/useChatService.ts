@@ -390,6 +390,22 @@ function useMockChatService() {
     useChatStore.getState().clearChat();
   }, []);
 
+  /** After server-side delete: stop local gen, clear loading, do not remount generating. */
+  const resetAfterConversationDeleted = useCallback(
+    (deletedId: string) => {
+      const store = useChatStore.getState();
+      const isActive = store.conversationId === deletedId;
+      if (isActive) {
+        stopGeneration();
+        store.setLoading(false);
+        navEpochRef.current += 1;
+        store.clearChat();
+      }
+      useChatStore.getState().clearConversationGenerating(deletedId);
+    },
+    [stopGeneration],
+  );
+
   const switchConversation = useCallback(async (
     nextId: string,
     title?: string,
@@ -476,6 +492,7 @@ function useMockChatService() {
     stopGeneration,
     reconnect,
     clearConversation,
+    resetAfterConversationDeleted,
     switchConversation,
     loadOlderMessages,
   };
@@ -596,6 +613,26 @@ function useRealChatService() {
     }
   }, []);
 
+  /** After server-side delete: stop job, clear loading/generating, rebind blank session. */
+  const resetAfterConversationDeleted = useCallback(
+    (deletedId: string) => {
+      const store = useChatStore.getState();
+      const isActive = store.conversationId === deletedId;
+      if (isActive) {
+        stopGeneration();
+        store.setLoading(false);
+        navEpochRef.current += 1;
+        store.clearChat();
+        const client = clientRef.current;
+        if (client && client.getStatus() === 'open') {
+          sendHello(client);
+        }
+      }
+      useChatStore.getState().clearConversationGenerating(deletedId);
+    },
+    [stopGeneration],
+  );
+
   const switchConversation = useCallback(async (
     nextId: string,
     title?: string,
@@ -698,6 +735,7 @@ function useRealChatService() {
     stopGeneration,
     reconnect,
     clearConversation,
+    resetAfterConversationDeleted,
     switchConversation,
     loadOlderMessages,
   };

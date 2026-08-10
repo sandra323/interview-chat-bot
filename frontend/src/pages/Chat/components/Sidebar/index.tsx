@@ -1,11 +1,18 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { Button, message as antdMessage } from 'antd';
-import { PlusOutlined } from '@ant-design/icons';
+import { App, Button, Dropdown, Input, Modal, message as antdMessage } from 'antd';
 import {
+  DeleteOutlined,
+  EditOutlined,
+  EllipsisOutlined,
+  PlusOutlined,
+} from '@ant-design/icons';
+import {
+  deleteConversation,
   fetchConversations,
+  renameConversation,
   type ConversationListItem,
 } from '@/apis/conversations';
-import { truncateConversationTitle } from '@/utils/conversationTitle';
+import { displayConversationTitle } from '@/utils/conversationTitle';
 import styles from './index.module.less';
 
 interface SidebarProps {
@@ -22,6 +29,10 @@ interface SidebarProps {
   onSelectConversation: (conversationId: string, title: string) => void;
   /** Sync local generating markers from server list */
   onGeneratingSync?: (serverGeneratingIds: string[]) => void;
+  /** Active chat was deleted — parent should clear local session */
+  onConversationDeleted?: (conversationId: string) => void;
+  /** Active chat was renamed — parent should update header title */
+  onConversationRenamed?: (conversationId: string, title: string) => void;
 }
 
 function formatUpdatedAt(ts: number): string {
@@ -47,30 +58,46 @@ export default function Sidebar({
   onNewChat,
   onSelectConversation,
   onGeneratingSync,
+  onConversationDeleted,
+  onConversationRenamed,
 }: SidebarProps) {
+  // App.useApp() modal inherits ConfigProvider dark theme (static Modal.confirm does not)
+  const { modal } = App.useApp();
   const shortModel = modelLabel.split(' ').slice(-1)[0] ?? modelLabel;
   const [items, setItems] = useState<ConversationListItem[]>([]);
   const [loading, setLoading] = useState(false);
+  const [menuOpenId, setMenuOpenId] = useState<string | null>(null);
+  const [renameTarget, setRenameTarget] = useState<ConversationListItem | null>(
+    null,
+  );
+  const [renameValue, setRenameValue] = useState('');
+  const [renameSaving, setRenameSaving] = useState(false);
   const onGeneratingSyncRef = useRef(onGeneratingSync);
   onGeneratingSyncRef.current = onGeneratingSync;
+  const historyEpochRef = useRef(0);
 
   // Stable callback so refreshKey is the only intentional refetch trigger
   const loadHistory = useCallback(async () => {
+    const epoch = ++historyEpochRef.current;
     setLoading(true);
     try {
       const list = await fetchConversations();
+      if (epoch !== historyEpochRef.current) return;
       setItems(list);
       onGeneratingSyncRef.current?.(
         list.filter((item) => item.generating).map((item) => item.id),
       );
     } catch (error) {
+      if (epoch !== historyEpochRef.current) return;
       const msg =
         error instanceof Error
           ? error.message
           : '哎呀，历史记录加载失败了，请稍后重试';
       antdMessage.error(msg);
     } finally {
-      setLoading(false);
+      if (epoch === historyEpochRef.current) {
+        setLoading(false);
+      }
     }
   }, []);
 
@@ -91,6 +118,70 @@ export default function Sidebar({
     }, 3000);
     return () => window.clearInterval(timer);
   }, [hasGenerating, loadHistory]);
+
+  const openRename = useCallback((item: ConversationListItem) => {
+    setRenameTarget(item);
+    setRenameValue(item.title);
+  }, []);
+
+  const handleRenameOk = useCallback(async () => {
+    if (!renameTarget) {
+      return Promise.reject(new Error('missing target'));
+    }
+    const next = renameValue.trim();
+    if (!next) {
+      antdMessage.warning('标题不能为空');
+      return Promise.reject(new Error('empty title'));
+    }
+    setRenameSaving(true);
+    try {
+      const result = await renameConversation(renameTarget.id, next);
+      historyEpochRef.current += 1;
+      setItems((prev) =>
+        prev.map((item) =>
+          item.id === result.id ? { ...item, title: result.title } : item,
+        ),
+      );
+      onConversationRenamed?.(result.id, result.title);
+      setRenameTarget(null);
+    } catch (error) {
+      antdMessage.error(
+        error instanceof Error ? error.message : '哎呀，重命名失败了，请稍后重试',
+      );
+      return Promise.reject(error);
+    } finally {
+      setRenameSaving(false);
+    }
+  }, [renameTarget, renameValue, onConversationRenamed]);
+
+  const handleDelete = useCallback(
+    (item: ConversationListItem) => {
+      modal.confirm({
+        title: '删除对话',
+        content: '删除后无法恢复，确定删除这个对话吗？',
+        okText: '删除',
+        cancelText: '取消',
+        okButtonProps: { danger: true },
+        cancelButtonProps: { type: 'default' },
+        onOk: async () => {
+          try {
+            await deleteConversation(item.id);
+            historyEpochRef.current += 1;
+            setItems((prev) => prev.filter((row) => row.id !== item.id));
+            onConversationDeleted?.(item.id);
+          } catch (error) {
+            antdMessage.error(
+              error instanceof Error
+                ? error.message
+                : '哎呀，删除失败了，请稍后重试',
+            );
+            throw error;
+          }
+        },
+      });
+    },
+    [modal, onConversationDeleted],
+  );
 
   return (
     <aside
@@ -123,21 +214,32 @@ export default function Sidebar({
             const generating =
               Boolean(item.generating) ||
               generatingConversationIds.includes(item.id);
+            const menuOpen = menuOpenId === item.id;
             return (
-              <button
+              <div
                 key={item.id}
-                type="button"
+                role="button"
+                tabIndex={0}
                 className={`${styles.historyItem} ${
                   active ? styles.historyItemActive : ''
-                }`}
+                } ${menuOpen ? styles.historyItemMenuOpen : ''}`}
                 onClick={() => {
                   if (!active) onSelectConversation(item.id, item.title);
+                }}
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter' || e.key === ' ') {
+                    e.preventDefault();
+                    if (!active) onSelectConversation(item.id, item.title);
+                  }
                 }}
                 aria-current={active ? 'true' : undefined}
               >
                 <div className={styles.historyTitleRow}>
-                  <p className={styles.historyTitle}>
-                    {truncateConversationTitle(item.title)}
+                  <p
+                    className={styles.historyTitle}
+                    title={displayConversationTitle(item.title)}
+                  >
+                    {displayConversationTitle(item.title)}
                   </p>
                   {generating ? (
                     <span
@@ -147,12 +249,53 @@ export default function Sidebar({
                     />
                   ) : null}
                 </div>
-                <p className={styles.historyMeta}>
-                  {generating ? '生成中 · ' : ''}
-                  {formatUpdatedAt(item.updatedAt)}
-                  {active ? ` · ${shortModel}` : ''}
-                </p>
-              </button>
+                <div className={styles.historyMetaRow}>
+                  <p className={styles.historyMeta}>
+                    {generating ? '生成中 · ' : ''}
+                    {formatUpdatedAt(item.updatedAt)}
+                    {active ? ` · ${shortModel}` : ''}
+                  </p>
+                  <Dropdown
+                    trigger={['click']}
+                    open={menuOpen}
+                    onOpenChange={(next) =>
+                      setMenuOpenId(next ? item.id : null)
+                    }
+                    menu={{
+                      items: [
+                        {
+                          key: 'rename',
+                          icon: <EditOutlined />,
+                          label: '重命名',
+                          onClick: ({ domEvent }) => {
+                            domEvent.stopPropagation();
+                            openRename(item);
+                          },
+                        },
+                        {
+                          key: 'delete',
+                          icon: <DeleteOutlined />,
+                          label: '删除',
+                          danger: true,
+                          onClick: ({ domEvent }) => {
+                            domEvent.stopPropagation();
+                            handleDelete(item);
+                          },
+                        },
+                      ],
+                    }}
+                  >
+                    <button
+                      type="button"
+                      className={styles.moreBtn}
+                      aria-label="更多操作"
+                      onClick={(e) => e.stopPropagation()}
+                    >
+                      <EllipsisOutlined />
+                    </button>
+                  </Dropdown>
+                </div>
+              </div>
             );
           })}
         </div>
@@ -165,6 +308,30 @@ export default function Sidebar({
           </div>
         </div>
       </div>
+
+      <Modal
+        title="重命名"
+        open={Boolean(renameTarget)}
+        okText="确定"
+        cancelText="取消"
+        confirmLoading={renameSaving}
+        destroyOnHidden
+        onCancel={() => {
+          if (!renameSaving) setRenameTarget(null);
+        }}
+        onOk={() => handleRenameOk()}
+      >
+        <Input
+          value={renameValue}
+          maxLength={100}
+          autoFocus
+          placeholder="请输入新的对话名称"
+          onChange={(e) => setRenameValue(e.target.value)}
+          onPressEnter={() => {
+            void handleRenameOk();
+          }}
+        />
+      </Modal>
     </aside>
   );
 }

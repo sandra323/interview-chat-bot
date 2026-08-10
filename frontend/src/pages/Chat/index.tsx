@@ -7,7 +7,6 @@ import Main from '@/components/Layout/Main';
 import ConnectionBanner from '@/components/ConnectionBanner';
 import { useChatService } from '@/hooks/useChatService';
 import { useChatStore } from '@/store/useChatStore';
-import { truncateConversationTitle } from '@/utils/conversationTitle';
 import MessageList from './components/MessageList';
 import ChatInput from './components/ChatInput';
 import Sidebar from './components/Sidebar';
@@ -23,6 +22,7 @@ export default function ChatPage() {
     sendMessage,
     stopGeneration,
     clearConversation,
+    resetAfterConversationDeleted,
     switchConversation,
     loadOlderMessages,
   } = useChatService();
@@ -67,6 +67,20 @@ export default function ChatPage() {
     },
     [switchConversation],
   );
+
+  const handleConversationDeleted = useCallback(
+    (id: string) => {
+      resetAfterConversationDeleted(id);
+    },
+    [resetAfterConversationDeleted],
+  );
+
+  const handleConversationRenamed = useCallback((id: string, title: string) => {
+    const state = useChatStore.getState();
+    if (state.conversationId === id) {
+      state.setConversationTitle(title);
+    }
+  }, []);
 
   const handleSuggestion = useCallback(
     (text: string) => {
@@ -122,14 +136,10 @@ export default function ChatPage() {
   const modelLabel =
     MODEL_OPTIONS.find((m) => m.id === model)?.label ?? model;
 
-  const conversationTitleDisplay = conversationTitle
-    ? truncateConversationTitle(conversationTitle)
-    : undefined;
-
   return (
     <div className={styles.page}>
       <Header
-        title={conversationTitleDisplay}
+        title={conversationTitle?.trim() || undefined}
         model={model}
         onModelChange={handleModelChange}
         onToggleSidebar={() => setSidebarOpen((v) => !v)}
@@ -148,6 +158,8 @@ export default function ChatPage() {
           onNewChat={handleNewChat}
           onSelectConversation={handleSelectConversation}
           onGeneratingSync={handleGeneratingSync}
+          onConversationDeleted={handleConversationDeleted}
+          onConversationRenamed={handleConversationRenamed}
         />
         <div className={styles.mainColumn}>
           <Main>

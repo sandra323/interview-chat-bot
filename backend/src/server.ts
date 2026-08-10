@@ -5,6 +5,10 @@ import { WebSocketServer } from 'ws';
 import { ConnectionManager } from './websocket/connectionManager.js';
 import { handleMessage } from './websocket/handleMessage.js';
 import { GenerationRunner } from './generation/generationRunner.js';
+import {
+  getGenerationRunner,
+  registerGenerationRunner,
+} from './generation/runnerRegistry.js';
 import { getChatStore } from './store/chatStore.js';
 import { sendFail, sendSuccess } from './http/apiResponse.js';
 import { logger } from './utils/logger.js';
@@ -51,6 +55,77 @@ export function createApp(env: ServerEnv): express.Application {
       sendFail(res, {
         code: ApiCode.INTERNAL_ERROR,
         msg: '哎呀，历史记录加载失败了，请稍后重试',
+      });
+    }
+  });
+
+  // Rename conversation (custom title; does not reorder list)
+  app.patch('/api/conversations/:id', (req, res) => {
+    try {
+      const conversationId = req.params.id;
+      const store = getChatStore();
+      if (!store.conversationExists(conversationId)) {
+        sendFail(res, {
+          code: ApiCode.NOT_FOUND,
+          msg: '哎呀，找不到这个会话了',
+        });
+        return;
+      }
+
+      const title =
+        typeof req.body?.title === 'string' ? req.body.title.trim() : '';
+      if (!title) {
+        sendFail(res, {
+          code: ApiCode.BAD_REQUEST,
+          msg: '哎呀，标题不能为空',
+          httpStatus: 400,
+        });
+        return;
+      }
+      if (title.length > 100) {
+        sendFail(res, {
+          code: ApiCode.BAD_REQUEST,
+          msg: '哎呀，标题太长了，请缩短一点',
+          httpStatus: 400,
+        });
+        return;
+      }
+
+      store.renameConversation(conversationId, title);
+      sendSuccess(res, { id: conversationId, title });
+    } catch (error) {
+      logger.error('Failed to rename conversation', {
+        error: error instanceof Error ? error.message : 'Unknown error',
+      });
+      sendFail(res, {
+        code: ApiCode.INTERNAL_ERROR,
+        msg: '哎呀，重命名失败了，请稍后重试',
+      });
+    }
+  });
+
+  // Delete conversation and all related messages / generations
+  app.delete('/api/conversations/:id', (req, res) => {
+    try {
+      const conversationId = req.params.id;
+      const store = getChatStore();
+      // Abort in-memory job before CASCADE removes generation rows
+      getGenerationRunner()?.stopConversation(conversationId);
+      if (!store.deleteConversation(conversationId)) {
+        sendFail(res, {
+          code: ApiCode.NOT_FOUND,
+          msg: '哎呀，找不到这个会话了',
+        });
+        return;
+      }
+      sendSuccess(res, { id: conversationId });
+    } catch (error) {
+      logger.error('Failed to delete conversation', {
+        error: error instanceof Error ? error.message : 'Unknown error',
+      });
+      sendFail(res, {
+        code: ApiCode.INTERNAL_ERROR,
+        msg: '哎呀，删除失败了，请稍后重试',
       });
     }
   });
@@ -116,6 +191,7 @@ export function attachWebSocketServer(server: Server): WebSocketServer {
     logger.info('Marked orphaned generations as error', { count: orphaned });
   }
   const runner = new GenerationRunner(store, connectionManager);
+  registerGenerationRunner(runner);
 
   wss.on('connection', (ws) => {
     const connection = connectionManager.addConnection(ws);

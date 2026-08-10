@@ -79,9 +79,11 @@
   background: transparent;
   cursor: pointer;
   transition: background 0.15s ease;
+  outline: none;
 }
 
-.historyItem:hover {
+.historyItem:hover,
+.historyItemMenuOpen {
   background: rgba(255, 255, 255, 0.04);
 }
 
@@ -91,7 +93,8 @@
   cursor: default;
 }
 
-.historyItemActive:hover {
+.historyItemActive:hover,
+.historyItemActive.historyItemMenuOpen {
   background: var(--color-selected-bg);
 }
 
@@ -140,11 +143,63 @@
   color: var(--color-selected-text);
 }
 
+.historyMetaRow {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  margin-top: 2px;
+  min-width: 0;
+}
+
 .historyMeta {
-  margin: 2px 0 0;
+  margin: 0;
+  flex: 1;
+  min-width: 0;
   font-size: 12px;
   color: var(--color-text-quaternary);
   font-family: var(--font-mono);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.moreBtn {
+  flex-shrink: 0;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 22px;
+  height: 22px;
+  margin: 0;
+  padding: 0;
+  border: 0;
+  border-radius: var(--radius-md, 6px);
+  background: transparent;
+  color: var(--color-text-quaternary);
+  cursor: pointer;
+  opacity: 1;
+  transition: opacity 0.15s ease, background 0.15s ease, color 0.15s ease;
+}
+
+/* Fine pointer + hover: hide until row hover / menu open (touch keeps visible) */
+@media (hover: hover) and (pointer: fine) {
+  .moreBtn {
+    opacity: 0;
+  }
+
+  .historyItem:hover .moreBtn,
+  .historyItemMenuOpen .moreBtn {
+    opacity: 1;
+  }
+}
+
+.historyItemMenuOpen .moreBtn {
+  opacity: 1;
+}
+
+.moreBtn:hover {
+  background: rgba(255, 255, 255, 0.08);
+  color: var(--color-text-secondary);
 }
 
 .userCard {

@@ -1,4 +1,4 @@
-import { apiGet } from './http/client';
+import { apiDelete, apiGet, apiPatch } from './http/client';
 
 export interface ConversationListItem {
   id: string;
@@ -48,5 +48,24 @@ export async function fetchConversationMessages(
   });
   return apiGet<ConversationMessagesPage>(
     `/api/conversations/${encodeURIComponent(conversationId)}/messages?${query}`,
+  );
+}
+
+/** Rename a conversation (custom title) */
+export async function renameConversation(
+  conversationId: string,
+  title: string,
+): Promise<{ id: string; title: string }> {
+  return apiPatch(`/api/conversations/${encodeURIComponent(conversationId)}`, {
+    title,
+  });
+}
+
+/** Delete a conversation and its messages */
+export async function deleteConversation(
+  conversationId: string,
+): Promise<{ id: string }> {
+  return apiDelete(
+    `/api/conversations/${encodeURIComponent(conversationId)}`,
   );
 }

@@ -78,8 +78,14 @@ export class GenerationRunner {
     return true;
   }
 
-  /** Stop any running generation for a conversation (e.g. clear chat). */
+  /** Stop any running generation for a conversation (e.g. clear / delete chat). */
   stopConversation(conversationId: string): string | null {
+    for (const job of this.jobs.values()) {
+      if (job.conversationId === conversationId) {
+        job.controller.abort();
+        return job.generationId;
+      }
+    }
     const running = this.store.getRunningGeneration(conversationId);
     if (!running) return null;
     this.stop(running.id);

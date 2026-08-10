@@ -63,7 +63,8 @@ export class ChatStore {
       CREATE TABLE IF NOT EXISTS conversations (
         id TEXT PRIMARY KEY,
         created_at INTEGER NOT NULL,
-        updated_at INTEGER NOT NULL
+        updated_at INTEGER NOT NULL,
+        title TEXT
       );
 
       CREATE TABLE IF NOT EXISTS messages (
@@ -92,6 +93,14 @@ export class ChatStore {
       CREATE INDEX IF NOT EXISTS idx_generations_conversation
         ON generations(conversation_id, updated_at);
     `);
+
+    // Existing DBs created before title column
+    const cols = this.db
+      .prepare(`PRAGMA table_info(conversations)`)
+      .all() as Array<{ name: string }>;
+    if (!cols.some((c) => c.name === 'title')) {
+      this.db.exec(`ALTER TABLE conversations ADD COLUMN title TEXT`);
+    }
   }
 
   close(): void {
@@ -131,7 +140,7 @@ export class ChatStore {
 
   /**
    * List conversations for the sidebar, newest first.
-   * Title = full first user message (trimmed); empty chats are omitted.
+   * Title = custom title if set, else first user message; empty chats omitted.
    * Display truncation belongs on the frontend.
    */
   listConversations(limit = 50): ConversationListItem[] {
@@ -142,6 +151,7 @@ export class ChatStore {
         `SELECT
            c.id AS id,
            c.updated_at AS updated_at,
+           c.title AS custom_title,
            (
              SELECT m.content
              FROM messages m
@@ -168,19 +178,35 @@ export class ChatStore {
       .all(limit) as Array<{
       id: string;
       updated_at: number;
+      custom_title: string | null;
       first_user_message: string | null;
       generating: number;
     }>;
 
     return rows.map((row) => {
+      const custom = row.custom_title?.trim() ?? '';
       const raw = row.first_user_message?.trim() ?? '';
       return {
         id: row.id,
-        title: raw || '新对话',
+        title: custom || raw || '新对话',
         updatedAt: row.updated_at,
         generating: Boolean(row.generating),
       };
     });
+  }
+
+  /**
+   * Set a custom sidebar title. Does not bump updated_at (keeps list order).
+   * Returns false if the conversation does not exist.
+   */
+  renameConversation(conversationId: string, title: string): boolean {
+    if (!this.conversationExists(conversationId)) return false;
+    const trimmed = title.trim();
+    if (!trimmed) return false;
+    this.db
+      .prepare(`UPDATE conversations SET title = ? WHERE id = ?`)
+      .run(trimmed, conversationId);
+    return true;
   }
 
   /**
@@ -420,10 +446,12 @@ export class ChatStore {
     return this.getGeneration(generationId);
   }
 
-  deleteConversation(conversationId: string): void {
-    this.db
+  /** Returns true when a row was deleted. */
+  deleteConversation(conversationId: string): boolean {
+    const result = this.db
       .prepare(`DELETE FROM conversations WHERE id = ?`)
       .run(conversationId);
+    return result.changes > 0;
   }
 
   /** After process restart, in-memory jobs are gone — fail open running rows. */
