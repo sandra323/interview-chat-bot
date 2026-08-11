@@ -57,10 +57,6 @@ export class ConnectionManager {
     this.connections.delete(connectionId);
   }
 
-  getConnection(connectionId: string): ConnectionState | undefined {
-    return this.connections.get(connectionId);
-  }
-
   getAllConnections(): ConnectionState[] {
     return Array.from(this.connections.values());
   }

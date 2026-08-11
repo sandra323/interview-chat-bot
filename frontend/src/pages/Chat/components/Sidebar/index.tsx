@@ -15,6 +15,7 @@ import {
   type ConversationListItem,
 } from '@/apis/conversations';
 import { useAuthStore } from '@/store/useAuthStore';
+import { useChatStore } from '@/store/useChatStore';
 import { displayConversationTitle } from '@/utils/conversationTitle';
 import styles from './index.module.less';
 
@@ -84,11 +85,27 @@ export default function Sidebar({
   const onGeneratingSyncRef = useRef(onGeneratingSync);
   onGeneratingSyncRef.current = onGeneratingSync;
   const historyEpochRef = useRef(0);
+  const connectionStatus = useChatStore((s) => s.ui.connectionStatus);
+  const [browserOnline, setBrowserOnline] = useState(
+    () => typeof navigator === 'undefined' || navigator.onLine,
+  );
+
+  useEffect(() => {
+    const onOnline = () => setBrowserOnline(true);
+    const onOffline = () => setBrowserOnline(false);
+    window.addEventListener('online', onOnline);
+    window.addEventListener('offline', onOffline);
+    return () => {
+      window.removeEventListener('online', onOnline);
+      window.removeEventListener('offline', onOffline);
+    };
+  }, []);
 
   // Stable callback so refreshKey is the only intentional refetch trigger
-  const loadHistory = useCallback(async () => {
+  const loadHistory = useCallback(async (options?: { silent?: boolean }) => {
+    const silent = options?.silent === true;
     const epoch = ++historyEpochRef.current;
-    setLoading(true);
+    if (!silent) setLoading(true);
     try {
       const list = await fetchConversations();
       if (epoch !== historyEpochRef.current) return;
@@ -98,13 +115,16 @@ export default function Sidebar({
       );
     } catch (error) {
       if (epoch !== historyEpochRef.current) return;
-      const msg =
-        error instanceof Error
-          ? error.message
-          : '哎呀，历史记录加载失败了，请稍后重试';
-      antdMessage.error(msg);
+      // Polls while offline would otherwise spam toasts every 3s
+      if (!silent) {
+        const msg =
+          error instanceof Error
+            ? error.message
+            : '哎呀，历史记录加载失败了，请稍后重试';
+        antdMessage.error(msg);
+      }
     } finally {
-      if (epoch === historyEpochRef.current) {
+      if (epoch === historyEpochRef.current && !silent) {
         setLoading(false);
       }
     }
@@ -120,13 +140,19 @@ export default function Sidebar({
     generatingConversationIds.length > 0 ||
     items.some((item) => item.generating);
 
+  // Mid-stream disconnect keeps local generating markers for resume — do not
+  // hammer /api/conversations while the network or WS is down.
+  const canPollGenerating =
+    hasGenerating && browserOnline && connectionStatus === 'open';
+
   useEffect(() => {
-    if (!hasGenerating) return;
+    if (!canPollGenerating) return;
+    void loadHistory({ silent: true });
     const timer = window.setInterval(() => {
-      void loadHistory();
+      void loadHistory({ silent: true });
     }, 3000);
     return () => window.clearInterval(timer);
-  }, [hasGenerating, loadHistory]);
+  }, [canPollGenerating, loadHistory]);
 
   const openRename = useCallback((item: ConversationListItem) => {
     setRenameTarget(item);

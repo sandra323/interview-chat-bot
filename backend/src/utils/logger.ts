@@ -13,18 +13,6 @@ function formatLog(level: LogLevel, message: string, meta?: LogMeta): string {
   });
 }
 
-export function redactConfig(config: {
-  apiUrl?: string;
-  apiKey?: string;
-  model?: string;
-}): Record<string, string | undefined> {
-  return {
-    apiUrl: config.apiUrl,
-    apiKey: config.apiKey ? '***REDACTED***' : undefined,
-    model: config.model,
-  };
-}
-
 export const logger = {
   info(message: string, meta?: LogMeta): void {
     console.log(formatLog('info', message, meta));

@@ -53,7 +53,3 @@ export function sendStop(
     generationId,
   });
 }
-
-export function sendPing(client: WebSocketClient): boolean {
-  return client.send({ type: 'ping' });
-}

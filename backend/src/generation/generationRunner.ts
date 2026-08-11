@@ -37,10 +37,6 @@ export class GenerationRunner {
     private readonly connections: ConnectionManager,
   ) {}
 
-  isRunning(generationId: string): boolean {
-    return this.jobs.has(generationId);
-  }
-
   start(params: {
     conversationId: string;
     generationId: string;

@@ -9,11 +9,3 @@ export function isNearBottom(
 export function scrollToBottom(container: HTMLElement): void {
   container.scrollTop = container.scrollHeight;
 }
-
-export function adjustTextareaHeight(
-  textarea: HTMLTextAreaElement,
-  maxHeight = 160,
-): void {
-  textarea.style.height = 'auto';
-  textarea.style.height = `${Math.min(textarea.scrollHeight, maxHeight)}px`;
-}

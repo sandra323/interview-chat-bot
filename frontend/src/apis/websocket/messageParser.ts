@@ -15,12 +15,3 @@ export function parseServerMessage(raw: string): ServerMessage | null {
 export function serializeClientMessage(message: ClientMessage): string {
   return JSON.stringify(message);
 }
-
-export function isServerMessage(value: unknown): value is ServerMessage {
-  return (
-    typeof value === 'object' &&
-    value !== null &&
-    'type' in value &&
-    typeof (value as { type: unknown }).type === 'string'
-  );
-}

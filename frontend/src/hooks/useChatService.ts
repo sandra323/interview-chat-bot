@@ -110,6 +110,40 @@ function finalizePendingAssistant(content?: string): void {
   useChatStore.getState().setLoading(false);
 }
 
+const DISCONNECT_SEND_ERROR = '哎呀，消息没发出去，请检查连接后再试';
+const OFFLINE_SEND_ERROR = '哎呀，当前网络不可用，请恢复网络后再试';
+
+/** Remove a locally-optimistic user bubble that never reached the server. */
+function removeMessageById(id: string): void {
+  const { messages, conversationTitle } = useChatStore.getState();
+  const removed = messages.find((m) => m.id === id);
+  const next = messages.filter((m) => m.id !== id);
+  useChatStore.setState({ messages: next });
+  if (
+    removed?.role === 'user' &&
+    conversationTitle === removed.content.trim() &&
+    !next.some((m) => m.role === 'user')
+  ) {
+    useChatStore.getState().setConversationTitle(null);
+  }
+}
+
+/**
+ * Abort "waiting for reply_start" (loading, no pending bubble).
+ * Clears Stop UI + toast; keeps the user bubble (may already be on server).
+ * Does not touch in-flight streaming bubbles so resume can continue.
+ */
+function abortWaitingForReply(errorMessage: string): boolean {
+  const { ui, getPendingAssistant, conversationId, clearConversationGenerating } =
+    useChatStore.getState();
+  if (!ui.loading || getPendingAssistant()) return false;
+
+  if (conversationId) clearConversationGenerating(conversationId);
+  useChatStore.getState().setLoading(false);
+  useChatStore.getState().setError(errorMessage);
+  return true;
+}
+
 function resumePendingIfNeeded(client: WebSocketClient): void {
   const { conversationId, getPendingAssistant, setConversationId } =
     useChatStore.getState();
@@ -536,9 +570,17 @@ function useRealChatService() {
       // Do not kill pending on transient disconnect — resume after reopen + auth_ok
       if (status === 'open') {
         resumePendingIfNeeded(client);
+      } else if (status === 'closed') {
+        // Sent but never got reply_start — exit Stop UI (don't kill streaming pending)
+        abortWaitingForReply(DISCONNECT_SEND_ERROR);
       }
     });
     client.connect();
+
+    const onBrowserOffline = () => {
+      abortWaitingForReply(OFFLINE_SEND_ERROR);
+    };
+    window.addEventListener('offline', onBrowserOffline);
 
     const onHydrated = () => {
       if (client.getStatus() === 'open') {
@@ -556,6 +598,7 @@ function useRealChatService() {
 
     return () => {
       unsub();
+      window.removeEventListener('offline', onBrowserOffline);
       client.disconnect();
       clientRef.current = null;
     };
@@ -563,12 +606,18 @@ function useRealChatService() {
 
   const stopGeneration = useCallback(() => {
     const client = clientRef.current;
-    const { conversationId, getPendingAssistant, clearConversationGenerating } =
-      useChatStore.getState();
+    const {
+      conversationId,
+      getPendingAssistant,
+      clearConversationGenerating,
+      setLoading: setLoadingState,
+    } = useChatStore.getState();
     const pending = getPendingAssistant();
     if (!client || !conversationId || !pending) {
       finalizePendingAssistant();
       if (conversationId) clearConversationGenerating(conversationId);
+      // Waiting for reply_start with no bubble — still exit Stop UI
+      setLoadingState(false);
       return false;
     }
     const sent = sendStop(client, conversationId, pending.id);
@@ -584,16 +633,22 @@ function useRealChatService() {
       if (!isValidMessage(trimmed)) return false;
       if (useChatStore.getState().getPendingAssistant()) return false;
 
+      if (typeof navigator !== 'undefined' && navigator.onLine === false) {
+        setError(OFFLINE_SEND_ERROR);
+        return false;
+      }
+
       const client = clientRef.current;
       if (!client || client.getStatus() !== 'open') {
-        setError('哎呀，还没连上服务器，请先启动后端');
+        setError('哎呀，还没连上服务器，请检查网络后再试');
         return false;
       }
 
       const { model, conversationId, conversationTitle } =
         useChatStore.getState();
 
-      addMessage(createMessage('user', trimmed));
+      const userMessage = createMessage('user', trimmed);
+      addMessage(userMessage);
       if (!conversationTitle) {
         useChatStore.getState().setConversationTitle(trimmed);
       }
@@ -605,8 +660,17 @@ function useRealChatService() {
         conversationId: conversationId ?? undefined,
       });
       if (!sent) {
+        removeMessageById(userMessage.id);
         setLoading(false);
-        setError('哎呀，消息没发出去，请检查连接后再试');
+        setError(DISCONNECT_SEND_ERROR);
+        return false;
+      }
+
+      // Chrome Offline often leaves WS readyState OPEN; catch right after send
+      if (typeof navigator !== 'undefined' && navigator.onLine === false) {
+        removeMessageById(userMessage.id);
+        setLoading(false);
+        setError(OFFLINE_SEND_ERROR);
         return false;
       }
 
