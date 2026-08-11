@@ -1,5 +1,6 @@
 import { createServer } from 'http';
 import {
+  assertAuthCredentials,
   assertLlmCredentials,
   loadEnvFiles,
   readServerEnv,
@@ -13,8 +14,9 @@ const env = readServerEnv();
 
 try {
   assertLlmCredentials(env);
+  assertAuthCredentials(env);
 } catch (error) {
-  logger.error(error instanceof Error ? error.message : 'Invalid LLM env');
+  logger.error(error instanceof Error ? error.message : 'Invalid server env');
   process.exit(1);
 }
 
