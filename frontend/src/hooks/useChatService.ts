@@ -17,10 +17,175 @@ import {
 } from '@/apis/conversations';
 import { createMessage, useChatStore } from '@/store/useChatStore';
 import { useAuthStore } from '@/store/useAuthStore';
+import {
+  alignReplyDelta,
+  mergeCatchupContent,
+} from '@/utils/replyStreamAlign';
 import { getWebSocketUrl, isValidMessage } from '@/utils/validators';
 
 const MOCK_CHUNK_SIZE = 4;
 const MOCK_CHUNK_INTERVAL_MS = 28;
+
+/** Cap buffered live deltas while waiting for reply_catchup. */
+const CATCHUP_BUFFER_MAX_ITEMS = 100;
+const CATCHUP_BUFFER_MAX_CHARS = 50_000;
+/** Avoid resume storms when offsets disagree. */
+const GAP_RESUME_COOLDOWN_MS = 1500;
+
+/** Live WS client for gap catch-up from message handlers (module-level). */
+let chatClientRef: WebSocketClient | null = null;
+
+type CatchupBufferEntry = {
+  conversationId: string;
+  buffer: Array<{ delta: string; offset: number }>;
+  bufferedChars: number;
+};
+
+/**
+ * Generations waiting for reply_catchup after resume — buffer live deltas
+ * so a late catchup does not race with drops.
+ */
+const awaitingCatchup = new Map<string, CatchupBufferEntry>();
+
+/** Conversations resumed without generationId (e.g. switch) — buffer until catchup. */
+const awaitingConversationCatchup = new Set<string>();
+
+const lastGapResumeAt = new Map<string, number>();
+
+function beginAwaitingCatchup(
+  conversationId: string,
+  generationId: string,
+): void {
+  if (awaitingCatchup.has(generationId)) return;
+  awaitingCatchup.set(generationId, {
+    conversationId,
+    buffer: [],
+    bufferedChars: 0,
+  });
+}
+
+function beginAwaitingConversationCatchup(conversationId: string): void {
+  awaitingConversationCatchup.add(conversationId);
+}
+
+function clearAwaitingCatchup(generationId: string): void {
+  awaitingCatchup.delete(generationId);
+  lastGapResumeAt.delete(generationId);
+}
+
+function clearAllCatchupState(): void {
+  awaitingCatchup.clear();
+  awaitingConversationCatchup.clear();
+  lastGapResumeAt.clear();
+}
+
+function pushCatchupBuffer(
+  entry: CatchupBufferEntry,
+  delta: string,
+  offset: number,
+): void {
+  while (
+    entry.buffer.length >= CATCHUP_BUFFER_MAX_ITEMS ||
+    entry.bufferedChars + delta.length > CATCHUP_BUFFER_MAX_CHARS
+  ) {
+    const dropped = entry.buffer.shift();
+    if (!dropped) break;
+    entry.bufferedChars = Math.max(
+      0,
+      entry.bufferedChars - dropped.delta.length,
+    );
+  }
+  entry.buffer.push({ delta, offset });
+  entry.bufferedChars += delta.length;
+}
+
+function requestGapCatchup(
+  conversationId: string,
+  generationId: string,
+  localLen: number,
+): void {
+  const client = chatClientRef;
+  if (!client || client.getStatus() !== 'open') return;
+
+  const now = Date.now();
+  const last = lastGapResumeAt.get(generationId) ?? 0;
+  const cooling = now - last < GAP_RESUME_COOLDOWN_MS;
+
+  beginAwaitingCatchup(conversationId, generationId);
+  if (cooling) {
+    // Already resumed recently (or still awaiting) — keep buffering only
+    return;
+  }
+
+  lastGapResumeAt.set(generationId, now);
+  sendResume(client, {
+    conversationId,
+    generationId,
+    offset: localLen,
+  });
+}
+
+function applyAlignedReplyDelta(
+  conversationId: string,
+  generationId: string,
+  delta: string,
+  offset: number,
+): void {
+  if (awaitingConversationCatchup.has(conversationId)) {
+    beginAwaitingCatchup(conversationId, generationId);
+  }
+
+  const pending = awaitingCatchup.get(generationId);
+  if (pending) {
+    pushCatchupBuffer(pending, delta, offset);
+    return;
+  }
+
+  const { messages, addMessage, updateMessage } = useChatStore.getState();
+  const msg = messages.find((m) => m.id === generationId);
+  const current = msg?.content ?? '';
+  const result = alignReplyDelta(current, delta, offset);
+
+  if (result.action === 'ignore') return;
+
+  if (result.action === 'gap') {
+    requestGapCatchup(conversationId, generationId, current.length);
+    return;
+  }
+
+  if (!msg) {
+    addMessage(
+      createMessage('assistant', result.content, 'pending', generationId),
+    );
+  } else {
+    updateMessage(generationId, { content: result.content, status: 'pending' });
+  }
+}
+
+function flushBufferedDeltas(generationId: string): void {
+  const pending = awaitingCatchup.get(generationId);
+  if (!pending) return;
+  const items = [...pending.buffer].sort((a, b) => a.offset - b.offset);
+  awaitingCatchup.delete(generationId);
+
+  for (let i = 0; i < items.length; i += 1) {
+    applyAlignedReplyDelta(
+      pending.conversationId,
+      generationId,
+      items[i].delta,
+      items[i].offset,
+    );
+    if (awaitingCatchup.has(generationId)) {
+      const entry = awaitingCatchup.get(generationId);
+      if (entry) {
+        for (const rest of items.slice(i + 1)) {
+          pushCatchupBuffer(entry, rest.delta, rest.offset);
+        }
+      }
+      return;
+    }
+  }
+}
 
 function mapHistoryItem(item: ConversationMessageItem): Message | null {
   if (item.role !== 'user' && item.role !== 'assistant') return null;
@@ -152,6 +317,8 @@ function resumePendingIfNeeded(client: WebSocketClient): void {
   if (conversationId) {
     if (pending) {
       useChatStore.getState().markConversationGenerating(conversationId);
+      beginAwaitingCatchup(conversationId, pending.id);
+      lastGapResumeAt.set(pending.id, Date.now());
       sendResume(client, {
         conversationId,
         generationId: pending.id,
@@ -159,6 +326,7 @@ function resumePendingIfNeeded(client: WebSocketClient): void {
       });
     } else {
       // May still have a background job — catch up if any
+      beginAwaitingConversationCatchup(conversationId);
       sendResume(client, { conversationId });
     }
     return;
@@ -183,7 +351,6 @@ function handleServerMessage(raw: string): void {
 
   const {
     addMessage,
-    appendMessageContent,
     updateMessage,
     setLoading,
     setError,
@@ -232,7 +399,12 @@ function handleServerMessage(raw: string): void {
     }
     case 'reply_delta':
       if (!isActiveConversation(message.conversationId)) break;
-      appendMessageContent(message.generationId, message.delta);
+      applyAlignedReplyDelta(
+        message.conversationId,
+        message.generationId,
+        message.delta,
+        message.offset,
+      );
       break;
     case 'reply_catchup': {
       if (message.done) {
@@ -240,12 +412,19 @@ function handleServerMessage(raw: string): void {
       } else {
         markConversationGenerating(message.conversationId);
       }
-      if (!isActiveConversation(message.conversationId)) break;
+      if (!isActiveConversation(message.conversationId)) {
+        clearAwaitingCatchup(message.generationId);
+        awaitingConversationCatchup.delete(message.conversationId);
+        break;
+      }
       const msg = useChatStore
         .getState()
         .messages.find((m) => m.id === message.generationId);
-      const merged =
-        (msg?.content.slice(0, message.offset) ?? '') + message.content;
+      const merged = mergeCatchupContent(
+        msg?.content ?? '',
+        message.content,
+        message.offset,
+      );
       if (!msg) {
         addMessage(
           createMessage(
@@ -261,6 +440,8 @@ function handleServerMessage(raw: string): void {
           status: message.done ? 'sent' : 'pending',
         });
       }
+      awaitingConversationCatchup.delete(message.conversationId);
+      flushBufferedDeltas(message.generationId);
       if (message.done) {
         setLoading(false);
       }
@@ -268,7 +449,10 @@ function handleServerMessage(raw: string): void {
     }
     case 'reply_end':
       clearConversationGenerating(message.conversationId);
+      clearAwaitingCatchup(message.generationId);
+      awaitingConversationCatchup.delete(message.conversationId);
       if (!isActiveConversation(message.conversationId)) break;
+      // Full snapshot — authoritative correction after streaming
       updateMessage(message.generationId, {
         content: message.content,
         status: 'sent',
@@ -297,6 +481,8 @@ function handleServerMessage(raw: string): void {
       break;
     case 'generation_error':
       clearConversationGenerating(message.conversationId);
+      clearAwaitingCatchup(message.generationId);
+      awaitingConversationCatchup.delete(message.conversationId);
       if (!isActiveConversation(message.conversationId)) break;
       setLoading(false);
       setError(message.message);
@@ -563,6 +749,7 @@ function useRealChatService() {
       skipAuth: false,
     });
     clientRef.current = client;
+    chatClientRef = client;
 
     client.onMessage(handleServerMessage);
     client.onStatusChange((status) => {
@@ -601,6 +788,8 @@ function useRealChatService() {
       window.removeEventListener('offline', onBrowserOffline);
       client.disconnect();
       clientRef.current = null;
+      if (chatClientRef === client) chatClientRef = null;
+      clearAllCatchupState();
     };
   }, [setConnectionStatus]);
 
@@ -768,6 +957,7 @@ function useRealChatService() {
 
       if (client && client.getStatus() === 'open') {
         // Bind + catch up any in-flight / finished generation on the target
+        beginAwaitingConversationCatchup(nextId);
         sendResume(client, { conversationId: nextId });
       }
     } catch (error) {
