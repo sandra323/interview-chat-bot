@@ -7,21 +7,24 @@ doc_role: index
 last_verified: 2026-08-11
 ```
 
-**Not implemented.** Placeholder for future auth UX.
+**Not implemented yet.**
 
-## Before building
+## Docs
 
-1. Read [`../shared/architecture.md`](../shared/architecture.md) and [`../shared/api-contracts.md`](../shared/api-contracts.md).  
-2. Copy skeletons from [`../_templates/`](../_templates/).  
-3. Decide how auth wraps existing chat HTTP/WS (do not invent parallel chat protocols).  
-4. Keep capabilities marked **planned** until code lands; then add `engineering/current-state.md`.  
+| File | Role |
+|------|------|
+| [`product/product-brief.md`](product/product-brief.md) | Product intent (login gate + logout) |
+| [`engineering/build-spec.md`](engineering/build-spec.md) | Technical MVP build spec |
+| [`engineering/execution-backlog.md`](engineering/execution-backlog.md) | Step-by-step implementation backlog (tasks + AC + commits) |
 
-## Planned (intent only)
+## Before coding
 
-- User sign-in / session  
-- Gate anonymous abuse of server-held LLM key  
-- Post-login entry into `ai-chat-page`  
+1. Read product brief → build spec → **execution backlog**  
+2. Read [`../shared/architecture.md`](../shared/architecture.md), [`../shared/api-contracts.md`](../shared/api-contracts.md)  
+3. Implement **one backlog task at a time** (order follows build-spec §12)  
+4. After ship: write `engineering/current-state.md` and flip labels to **shipped**
 
-## Explicitly not started
+## Not started
 
-- No routes, pages, or components under `frontend/` for login yet.  
+- No login routes/components under `frontend/` yet  
+- No auth APIs / `auth_sessions` table yet  

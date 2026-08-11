@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { App, Button, Dropdown, Input, Modal, message as antdMessage } from 'antd';
+import { App, Avatar, Button, Dropdown, Input, Modal, message as antdMessage } from 'antd';
 import {
   DeleteOutlined,
   EditOutlined,
@@ -299,7 +299,9 @@ export default function Sidebar({
         </div>
 
         <div className={styles.userCard}>
-          <div className={styles.avatar}>用</div>
+          <Avatar size={28} style={{ background: 'var(--gradient-cta)', fontSize: 12 }}>
+            用
+          </Avatar>
           <div>
             <p className={styles.userName}>用户</p>
             <p className={styles.userPlan}>免费版</p>
