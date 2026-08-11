@@ -1,5 +1,13 @@
 # Design Tokens
 
+```yaml
+feature: ai-chat-page
+doc_role: design-intent
+last_verified: 2026-08-11
+```
+
+Status: **shipped** in `frontend/src/styles/variables.less`. Also see [`../../shared/design-system.md`](../../shared/design-system.md).
+
 Source: Figma Make NeuralChat (`@theme` + component inline values). Implement via Less variables and CSS custom properties in `frontend/src/styles/variables.less` (and global styles as needed).
 
 ## Color
@@ -37,11 +45,11 @@ Source: Figma Make NeuralChat (`@theme` + component inline values). Implement vi
 | Token | Value | Role |
 |-------|-------|------|
 | `--color-primary` | `#3b82f6` | Selected history accent, focus hints |
-| `--color-primary-strong` | `#1d4ed8` | User bubble, gradient start |
+| `--color-primary-strong` | `#1d4ed8` | Gradient start (CTA), strong blue accent |
 | `--color-accent` | `#06b6d4` | Assistant name, status dot, cursor, badges |
 | `--color-accent-dim` | `rgba(6, 182, 212, 0.12)` | Badge / accent wash |
 | `--color-accent-mid` | `#0891b2` | Gradient end (CTA) |
-| `--color-user-bubble` | `#1d4ed8` | User message background |
+| `--color-user-bubble` | `#0bb9d7` | User message background (matches `variables.less`) |
 | `--color-ai-bubble` | `#151b27` | Optional AI surface (design token; bubbles may be transparent + markdown) |
 | `--color-selected-bg` | `rgba(59, 130, 246, 0.1)` | Active history row |
 | `--color-selected-text` | `#93c5fd` | Active history title |
@@ -134,14 +142,16 @@ Base unit: **4px**. Prefer 4 / 8 / 12 / 16 / 24.
 
 ## Radius
 
+Defined in `variables.less`: `--radius-lg` / `--radius-xl` / `--radius-2xl` / `--radius-full`.
+
 | Token | Value | Usage |
 |-------|-------|-------|
-| `--radius-md` | `6px`–`8px` (`rounded-md` / `lg`) | Buttons, cards, inputs, logo wells |
-| `--radius-lg` | `8px` (`rounded-lg`) | Default interactive surfaces |
-| `--radius-xl` | `12px` (`rounded-xl`) | Empty-state logo, composer shell |
-| `--radius-2xl` | `16px` (`rounded-2xl`) | Message bubbles |
-| `--radius-bubble-user-corner` | sharp top-right (`rounded-tr-sm`) | User bubble asymmetry |
-| `--radius-full` | `9999px` | User avatar chip |
+| `--radius-md` | *not in `:root`*; callers use `var(--radius-md, 6px)` fallback | Sidebar user card etc. |
+| `--radius-lg` | `8px` | Default interactive surfaces |
+| `--radius-xl` | `12px` | Empty-state logo, composer shell |
+| `--radius-2xl` | `16px` | Message bubbles |
+| `--radius-bubble-user-corner` | sharp top-right (CSS, not a Less var) | User bubble asymmetry |
+| `--radius-full` | `9999px` | Pills / chips |
 
 ---
 
@@ -158,20 +168,8 @@ Base unit: **4px**. Prefer 4 / 8 / 12 / 16 / 24.
 
 ---
 
-## Mapping from current `variables.less`
+## Mapping note (`variables.less`)
 
-Replace the light MVP tokens with the dark system:
+Dark tokens above are **shipped** in `frontend/src/styles/variables.less`. Alias keys still exist for back-compat (`--color-bg`, `--color-surface`, `--color-text-primary`).
 
-| Current (light) | Target (dark) |
-|-----------------|---------------|
-| `--color-bg: #f9fafb` | `--color-background: #0a0c10` |
-| `--color-surface: #ffffff` | `--color-card: #111318` |
-| `--color-border: #e5e7eb` | `--color-border: #1e2330` |
-| `--color-text-primary: #111827` | `--color-foreground: #e8eaed` |
-| `--color-text-secondary: #6b7280` | keep as muted-foreground; add fuller text scale above |
-| `--color-primary: #3b82f6` | keep `#3b82f6`; add strong `#1d4ed8` |
-| `--color-user-bubble: #3b82f6` | `#1d4ed8` |
-| `--color-ai-bubble: #f3f4f6` | `#151b27` or transparent + markdown |
-| `--color-error: #ef4444` | keep |
-
-Add new tokens: `--color-sidebar`, `--color-accent`, `--color-accent-dim`, `--font-sans`, `--font-mono`, `--sidebar-width`, radius tokens, `--gradient-cta`.
+If design intent and code diverge, **prefer the Less file** for shipped values (e.g. user bubble `#0bb9d7`).

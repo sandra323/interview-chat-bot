@@ -1,5 +1,13 @@
 # UI Direction
 
+```yaml
+feature: ai-chat-page
+doc_role: design-intent
+last_verified: 2026-08-11
+```
+
+Visual direction status: **shipped** (see `frontend/src/styles/variables.less`).
+
 ## Decision
 
 Adopt the **NeuralChat dark tech** visual direction from the [Figma Make community design](https://www.figma.com/make/bu0j0F7YSvvyfrt8EVpBHm/AI%E8%81%8A%E5%A4%A9%E6%9C%BA%E5%99%A8%E4%BA%BA%E9%A1%B5%E9%9D%A2--Community-): near-black surfaces (`#0a0c10`), cool blue primary, cyan accent.
@@ -24,11 +32,12 @@ Product chrome may keep the existing name **AI Chat** or use **NeuralChat** as b
 
 ## Scope of this decision
 
-- **In**: Desktop-first sidebar + main chat shell; tokens and component feel from the Figma analysis.
-- **Out of this decision**: Mobile-optimized layout, theme toggle, full multi-session backend. Those do not reopen the visual direction.
+- **In**: Desktop-first sidebar + main chat shell; tokens and component feel from the Figma analysis. — **shipped**
+- **Out of this decision**: Mobile-optimized layout — **planned**; theme toggle — **planned**; multi-session was once “out” of *visual* decision but product multi-session is now **shipped** (see `current-state`).
 
 ## References
 
 - Token details → [`design-tokens.md`](design-tokens.md)
 - Component → antd / native mapping → [`component-mapping.md`](component-mapping.md)
 - Execution handoff → [`ui-handoff.md`](ui-handoff.md)
+- Reality → [`../engineering/current-state.md`](../engineering/current-state.md)

@@ -1,5 +1,24 @@
 # Build Spec
 
+```yaml
+feature: ai-chat-page
+doc_role: historical
+last_verified: 2026-08-11
+```
+
+> **Archived early tech plan.** Many assumptions below are **superseded**. Do not implement from this file blindly.  
+> Truth: [`current-state.md`](current-state.md), [`api-surface.md`](api-surface.md), [`../../shared/architecture.md`](../../shared/architecture.md).
+
+### Superseded assumptions (quick index)
+
+| Original assumption | Status now |
+|---------------------|------------|
+| API key sent from browser over WS | **deprecated** → server env key |
+| No backend DB / localStorage only history | **superseded** → SQLite + client persist |
+| Single conversation session only | **superseded** → multi-session sidebar |
+| Streaming out of scope | **superseded** → streaming **shipped** |
+| Config API URL from client | **deprecated** |
+
 ## 1. Technical Summary
 
 Lightweight single-page AI chat web app with a React frontend and Node.js backend, communicating over WebSocket for real-time message exchange. The backend proxies LLM API calls, and the frontend persists conversation history and API configuration in browser localStorage.

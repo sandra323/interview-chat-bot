@@ -1,5 +1,15 @@
 # Execution Backlog
 
+```yaml
+feature: ai-chat-page
+doc_role: historical
+status: archived
+last_verified: 2026-08-11
+```
+
+> **Historical milestone archive** from initial build-out. Do not re-run unchecked tasks as if the product were greenfield.  
+> For what works today → [`current-state.md`](current-state.md).
+
 ## 1. Execution Strategy
 
 **Implementation approach**: Bottom-up, dependency-first. Start with shared types and project scaffolding, build backend core before frontend UI, integrate early, and save deployment/QA for last. Each task is sized for one focused work session (30-90 min).
