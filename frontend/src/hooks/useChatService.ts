@@ -16,6 +16,7 @@ import {
   type ConversationMessageItem,
 } from '@/apis/conversations';
 import { createMessage, useChatStore } from '@/store/useChatStore';
+import { useAuthStore } from '@/store/useAuthStore';
 import { getWebSocketUrl, isValidMessage } from '@/utils/validators';
 
 const MOCK_CHUNK_SIZE = 4;
@@ -152,7 +153,6 @@ function handleServerMessage(raw: string): void {
     updateMessage,
     setLoading,
     setError,
-    setConnectionStatus,
     setConversationId,
     markConversationGenerating,
     clearConversationGenerating,
@@ -160,7 +160,10 @@ function handleServerMessage(raw: string): void {
 
   switch (message.type) {
     case 'connected':
-      setConnectionStatus('open');
+      // WS client sends `{ type: 'auth' }` next; stay connecting until auth_ok.
+      break;
+    case 'auth_ok':
+      // WebSocketClient flips status to open → resumePendingIfNeeded runs.
       break;
     case 'session':
       // null = server unbound for a blank new chat (client already cleared locally)
@@ -505,13 +508,27 @@ function useRealChatService() {
     useChatStore();
 
   useEffect(() => {
-    const client = new WebSocketClient(getWebSocketUrl());
+    const client = new WebSocketClient(getWebSocketUrl(), {
+      getAuthToken: () => useAuthStore.getState().token,
+      onAuthFailure: (reason) => {
+        useAuthStore.getState().forceLogoutLocal({ reason: 'unauthorized' });
+        useChatStore
+          .getState()
+          .setError(
+            reason === 'missing_token'
+              ? '请先登录'
+              : '登录已失效，请重新登录',
+          );
+      },
+      // USE_MOCK uses a separate mock service — never hit this branch with a live backend.
+      skipAuth: false,
+    });
     clientRef.current = client;
 
     client.onMessage(handleServerMessage);
     client.onStatusChange((status) => {
       setConnectionStatus(status);
-      // Do not kill pending on transient disconnect — resume after reopen
+      // Do not kill pending on transient disconnect — resume after reopen + auth_ok
       if (status === 'open') {
         resumePendingIfNeeded(client);
       }
