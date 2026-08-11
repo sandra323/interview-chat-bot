@@ -1,0 +1,23 @@
+import type { ReactNode } from 'react';
+import { Navigate } from 'react-router-dom';
+import { USE_MOCK } from '@/config/app';
+import { useAuthStore } from '@/store/useAuthStore';
+
+/** Public routes like `/login` — bounce authenticated users to chat. */
+export function GuestOnly({ children }: { children: ReactNode }) {
+  const status = useAuthStore((s) => s.status);
+
+  if (USE_MOCK) {
+    return <Navigate to="/" replace />;
+  }
+
+  if (status === 'unknown') {
+    return <div style={{ minHeight: '100vh', background: '#0a0c10' }} />;
+  }
+
+  if (status === 'authenticated') {
+    return <Navigate to="/" replace />;
+  }
+
+  return <>{children}</>;
+}

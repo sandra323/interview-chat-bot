@@ -19,6 +19,7 @@ interface AuthState {
   username: string | null;
   expiresAt: number | null;
   status: AuthStatus;
+  _hasHydrated: boolean;
   setSession: (session: AuthSession) => void;
   clearAuth: () => void;
   /**
@@ -26,9 +27,8 @@ interface AuthState {
    * Used by logout / 401 / expiry. Optional navigate via registered callback.
    */
   forceLogoutLocal: (options?: { reason?: string }) => void;
-  /** After reading persist: authenticated if token present, else anonymous. */
-  markBootstrappedFromStorage: () => void;
   setStatus: (status: AuthStatus) => void;
+  setHasHydrated: (value: boolean) => void;
 }
 
 type ForceLogoutListener = (info: { reason?: string }) => void;
@@ -52,6 +52,7 @@ export const useAuthStore = create<AuthState>()(
       username: null,
       expiresAt: null,
       status: 'unknown',
+      _hasHydrated: false,
 
       setSession: (session) =>
         set({
@@ -84,12 +85,9 @@ export const useAuthStore = create<AuthState>()(
         }
       },
 
-      markBootstrappedFromStorage: () => {
-        const { token } = get();
-        set({ status: token ? 'authenticated' : 'anonymous' });
-      },
-
       setStatus: (status) => set({ status }),
+
+      setHasHydrated: (value) => set({ _hasHydrated: value }),
     }),
     {
       name: AUTH_STORAGE_KEY,
@@ -99,7 +97,8 @@ export const useAuthStore = create<AuthState>()(
         expiresAt: state.expiresAt,
       }),
       onRehydrateStorage: () => (state) => {
-        state?.markBootstrappedFromStorage();
+        // Keep status `unknown` until AuthBootstrap finishes /api/auth/me.
+        state?.setHasHydrated(true);
       },
     },
   ),

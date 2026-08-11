@@ -18,6 +18,7 @@ describe('useAuthStore', () => {
       username: null,
       expiresAt: null,
       status: 'anonymous',
+      _hasHydrated: true,
     });
     useChatStore.setState({
       messages: [],

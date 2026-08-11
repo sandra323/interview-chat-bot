@@ -1,6 +1,12 @@
 import { App as AntApp, ConfigProvider, theme } from 'antd';
 import zhCN from 'antd/locale/zh_CN';
+import { BrowserRouter, Navigate, Route, Routes } from 'react-router-dom';
+import { AuthBootstrap } from '@/auth/AuthBootstrap';
+import { AuthNavigationEffect } from '@/auth/AuthNavigationEffect';
+import { GuestOnly } from '@/auth/GuestOnly';
+import { RequireAuth } from '@/auth/RequireAuth';
 import ChatPage from '@/pages/Chat';
+import LoginPage from '@/pages/Login';
 
 const antdTheme = {
   algorithm: theme.darkAlgorithm,
@@ -22,7 +28,29 @@ function App() {
   return (
     <ConfigProvider locale={zhCN} theme={antdTheme}>
       <AntApp>
-        <ChatPage />
+        <BrowserRouter>
+          <AuthBootstrap />
+          <AuthNavigationEffect />
+          <Routes>
+            <Route
+              path="/login"
+              element={
+                <GuestOnly>
+                  <LoginPage />
+                </GuestOnly>
+              }
+            />
+            <Route
+              path="/"
+              element={
+                <RequireAuth>
+                  <ChatPage />
+                </RequireAuth>
+              }
+            />
+            <Route path="*" element={<Navigate to="/" replace />} />
+          </Routes>
+        </BrowserRouter>
       </AntApp>
     </ConfigProvider>
   );
