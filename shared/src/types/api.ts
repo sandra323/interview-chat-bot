@@ -12,6 +12,7 @@
 export const ApiCode = {
   SUCCESS: 0,
   BAD_REQUEST: 40000,
+  UNAUTHORIZED: 40100,
   NOT_FOUND: 40400,
   INTERNAL_ERROR: 50000,
 } as const;
