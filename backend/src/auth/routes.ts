@@ -5,6 +5,7 @@ import { sendFail, sendSuccess } from '../http/apiResponse.js';
 import { logger } from '../utils/logger.js';
 import { extractBearerToken } from './bearer.js';
 import { verifyDemoCredentials } from './credentials.js';
+import { resolveBearerSession } from './resolveSession.js';
 import { getAuthSessionStore } from './sessionStore.js';
 
 /**
@@ -71,38 +72,17 @@ export function createAuthRouter(env: ServerEnv): Router {
 
   router.get('/me', (req, res) => {
     try {
-      const token = extractBearerToken(req);
-      if (!token) {
+      const result = resolveBearerSession(extractBearerToken(req));
+      if (!result.ok) {
         sendFail(res, {
           code: ApiCode.UNAUTHORIZED,
-          msg: '请先登录',
+          msg: result.msg,
         });
         return;
       }
-
-      const store = getAuthSessionStore();
-      const now = Date.now();
-      const valid = store.findValidByToken(token, now);
-      if (valid) {
-        sendSuccess(res, {
-          username: valid.username,
-          expiresAt: valid.expiresAt,
-        });
-        return;
-      }
-
-      const any = store.lookupByToken(token);
-      if (any && (any.revokedAt != null || any.expiresAt <= now)) {
-        sendFail(res, {
-          code: ApiCode.UNAUTHORIZED,
-          msg: '登录已过期，请重新登录',
-        });
-        return;
-      }
-
-      sendFail(res, {
-        code: ApiCode.UNAUTHORIZED,
-        msg: '请先登录',
+      sendSuccess(res, {
+        username: result.auth.username,
+        expiresAt: result.auth.expiresAt,
       });
     } catch (error) {
       logger.error('Auth me error', {

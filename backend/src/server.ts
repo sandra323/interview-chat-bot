@@ -12,6 +12,7 @@ import {
 import { getChatStore } from './store/chatStore.js';
 import { getAuthSessionStore } from './auth/sessionStore.js';
 import { createAuthRouter } from './auth/routes.js';
+import { requireAuth } from './auth/middleware.js';
 import { sendFail, sendSuccess } from './http/apiResponse.js';
 import { logger } from './utils/logger.js';
 import type { ServerEnv } from './config/env.js';
@@ -49,8 +50,12 @@ export function createApp(env: ServerEnv): express.Application {
 
   app.use('/api/auth', createAuthRouter(env));
 
+  // Conversation APIs require a valid Bearer session (not /health or /api/auth).
+  const conversations = express.Router();
+  conversations.use(requireAuth);
+
   // Sidebar history: list conversations (newest first)
-  app.get('/api/conversations', (_req, res) => {
+  conversations.get('/', (_req, res) => {
     try {
       const store = getChatStore();
       const items = store.listConversations();
@@ -67,7 +72,7 @@ export function createApp(env: ServerEnv): express.Application {
   });
 
   // Rename conversation (custom title; does not reorder list)
-  app.patch('/api/conversations/:id', (req, res) => {
+  conversations.patch('/:id', (req, res) => {
     try {
       const conversationId = req.params.id;
       const store = getChatStore();
@@ -112,7 +117,7 @@ export function createApp(env: ServerEnv): express.Application {
   });
 
   // Delete conversation and all related messages / generations
-  app.delete('/api/conversations/:id', (req, res) => {
+  conversations.delete('/:id', (req, res) => {
     try {
       const conversationId = req.params.id;
       const store = getChatStore();
@@ -138,7 +143,7 @@ export function createApp(env: ServerEnv): express.Application {
   });
 
   // Conversation messages with page / pageSize (page=1 = newest page)
-  app.get('/api/conversations/:id/messages', (req, res) => {
+  conversations.get('/:id/messages', (req, res) => {
     try {
       const conversationId = req.params.id;
       const store = getChatStore();
@@ -182,6 +187,7 @@ export function createApp(env: ServerEnv): express.Application {
     }
   });
 
+  app.use('/api/conversations', conversations);
   return app;
 }
 
