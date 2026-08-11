@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { App, Button, Form, Input, Typography } from 'antd';
+import { App, BorderBeam, Button, Form, Input, Typography } from 'antd';
 import { login, AUTH_FALLBACK_LOGIN } from '@/apis/auth';
 import { userFacingApiMessage } from '@/apis/http/client';
 import { useAuthStore } from '@/store/useAuthStore';
@@ -36,56 +36,67 @@ export default function LoginPage() {
 
   return (
     <div className={styles.page}>
-      <div className={styles.panel}>
-        <Typography.Title level={2} className={styles.brand}>
-          NeuralChat
-        </Typography.Title>
-        <Typography.Paragraph className={styles.subtitle}>
-          登录后继续对话
-        </Typography.Paragraph>
+      <BorderBeam
+        duration={8}
+        size={200}
+        lineWidth={1.5}
+        color={[
+          { color: '#3b82f6', percent: 0 },
+          { color: '#06b6d4', percent: 55 },
+          { color: '#0891b2', percent: 100 },
+        ]}
+      >
+        <div className={styles.panel}>
+          <Typography.Title level={2} className={styles.brand}>
+            NeuralChat
+          </Typography.Title>
+          <Typography.Paragraph className={styles.subtitle}>
+            登录后开始对话
+          </Typography.Paragraph>
 
-        <Form
-          form={form}
-          layout="vertical"
-          requiredMark={false}
-          onFinish={onFinish}
-          disabled={submitting}
-        >
-          <Form.Item
-            label="账号"
-            name="username"
-            rules={[{ required: true, message: '请输入账号' }]}
+          <Form
+            form={form}
+            layout="vertical"
+            requiredMark={false}
+            onFinish={onFinish}
+            disabled={submitting}
           >
-            <Input
-              autoComplete="username"
-              placeholder="请输入账号"
-              size="large"
-            />
-          </Form.Item>
-          <Form.Item
-            label="密码"
-            name="password"
-            rules={[{ required: true, message: '请输入密码' }]}
-          >
-            <Input.Password
-              autoComplete="current-password"
-              placeholder="请输入密码"
-              size="large"
-            />
-          </Form.Item>
-          <Form.Item className={styles.submitItem}>
-            <Button
-              type="primary"
-              htmlType="submit"
-              size="large"
-              block
-              loading={submitting}
+            <Form.Item
+              label="账号"
+              name="username"
+              rules={[{ required: true, message: '请输入账号' }]}
             >
-              登录
-            </Button>
-          </Form.Item>
-        </Form>
-      </div>
+              <Input
+                autoComplete="username"
+                placeholder="请输入账号"
+                size="large"
+              />
+            </Form.Item>
+            <Form.Item
+              label="密码"
+              name="password"
+              rules={[{ required: true, message: '请输入密码' }]}
+            >
+              <Input.Password
+                autoComplete="current-password"
+                placeholder="请输入密码"
+                size="large"
+              />
+            </Form.Item>
+            <Form.Item className={styles.submitItem}>
+              <Button
+                type="primary"
+                htmlType="submit"
+                size="large"
+                block
+                loading={submitting}
+              >
+                登录
+              </Button>
+            </Form.Item>
+          </Form>
+        </div>
+      </BorderBeam>
     </div>
   );
 }

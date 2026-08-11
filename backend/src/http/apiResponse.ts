@@ -32,9 +32,11 @@ export function sendFail(
       ? 400
       : code === ApiCode.UNAUTHORIZED
         ? 401
-        : code === ApiCode.NOT_FOUND
-          ? 404
-          : 500);
+        : code === ApiCode.RATE_LIMITED
+          ? 429
+          : code === ApiCode.NOT_FOUND
+            ? 404
+            : 500);
 
   const body: ApiResponse<null> = {
     code,

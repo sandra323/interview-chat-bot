@@ -201,17 +201,24 @@ export default function Sidebar({
       okButtonProps: { danger: true },
       cancelButtonProps: { type: 'default' },
       onOk: async () => {
+        let serverLogoutOk = false;
         try {
           await logout();
+          serverLogoutOk = true;
         } catch {
-          // Best-effort: still clear local session below.
+          // Still clear local session below; warn that server may keep the token briefly.
         } finally {
           onDisconnect?.();
           forceLogoutLocal({ reason: 'logout' });
+          if (!serverLogoutOk) {
+            antdMessage.warning(
+              '本地已退出；服务端会话可能仍短暂有效，请勿在公共设备上继续操作',
+            );
+          }
         }
       },
     });
-  }, [modal, onDisconnect, forceLogoutLocal]);
+  }, [modal, onDisconnect, forceLogoutLocal, antdMessage]);
 
   return (
     <aside

@@ -208,10 +208,54 @@ export class AuthSessionStore {
     return result.changes > 0;
   }
 
-  /** Delete rows that are past expires_at. Returns deleted count. */
+  /**
+   * Revoke every active session for a username.
+   * @param exceptSessionId when set, keep that session (e.g. the one just created)
+   * @returns number of rows revoked
+   */
+  revokeAllForUsername(
+    username: string,
+    now: number = Date.now(),
+    exceptSessionId?: string,
+  ): number {
+    const normalized = username.trim();
+    if (!normalized) {
+      return 0;
+    }
+    if (exceptSessionId) {
+      const result = this.db
+        .prepare(
+          `UPDATE auth_sessions
+           SET revoked_at = ?
+           WHERE username = ?
+             AND revoked_at IS NULL
+             AND id != ?`,
+        )
+        .run(now, normalized, exceptSessionId);
+      return result.changes;
+    }
+    const result = this.db
+      .prepare(
+        `UPDATE auth_sessions
+         SET revoked_at = ?
+         WHERE username = ?
+           AND revoked_at IS NULL`,
+      )
+      .run(now, normalized);
+    return result.changes;
+  }
+
+  /**
+   * Delete expired rows and already-revoked rows (no longer needed for auth).
+   * Returns deleted count.
+   */
   purgeExpired(now: number = Date.now()): number {
     const result = this.db
-      .prepare(`DELETE FROM auth_sessions WHERE expires_at <= ?`)
+      .prepare(
+        `DELETE FROM auth_sessions
+         WHERE expires_at <= ?
+            OR revoked_at IS NOT NULL`,
+      )
       .run(now);
     return result.changes;
   }

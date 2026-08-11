@@ -1,4 +1,4 @@
-import { Affix, Button, Modal, Select, Tag } from 'antd';
+import { Affix, App, Button, Select, Tag } from 'antd';
 import { ClearOutlined, MenuOutlined } from '@ant-design/icons';
 import CatBotIcon from '@/components/CatBotIcon';
 import { MODEL_OPTIONS } from '@/config/models';
@@ -21,13 +21,17 @@ export default function Header({
   onClearChat,
   showMockBadge = false,
 }: HeaderProps) {
+  // App.useApp() modal inherits ConfigProvider dark theme (static Modal.confirm does not)
+  const { modal } = App.useApp();
+
   const handleClear = () => {
-    Modal.confirm({
+    modal.confirm({
       title: '清空对话',
       content: '确定清空当前会话中的所有消息吗？',
       okText: '清空',
       cancelText: '取消',
       okButtonProps: { danger: true },
+      cancelButtonProps: { type: 'default' },
       onOk: () => onClearChat(),
     });
   };

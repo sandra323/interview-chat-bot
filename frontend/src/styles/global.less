@@ -67,6 +67,30 @@ button {
   background: #3b4560;
 }
 
+/*
+ * Chrome/Safari autofill paints a light yellow/white fill that breaks dark inputs.
+ * Inset shadow + delayed transition keeps the dark surface and light text.
+ */
+input.ant-input:-webkit-autofill,
+input.ant-input:-webkit-autofill:hover,
+input.ant-input:-webkit-autofill:focus,
+input.ant-input:-webkit-autofill:active,
+.ant-input-affix-wrapper input:-webkit-autofill,
+.ant-input-affix-wrapper input:-webkit-autofill:hover,
+.ant-input-affix-wrapper input:-webkit-autofill:focus,
+.ant-input-affix-wrapper input:-webkit-autofill:active {
+  -webkit-text-fill-color: var(--color-foreground) !important;
+  caret-color: var(--color-foreground);
+  /* Match antd Input / --color-card */
+  -webkit-box-shadow: 0 0 0 1000px var(--color-card) inset !important;
+  box-shadow: 0 0 0 1000px var(--color-card) inset !important;
+  transition: background-color 99999s ease-in-out 0s;
+}
+
+.ant-input-affix-wrapper:has(input:-webkit-autofill) {
+  background-color: var(--color-card) !important;
+}
+
 @keyframes fadeSlideIn {
   from {
     opacity: 0;

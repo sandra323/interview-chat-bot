@@ -17,7 +17,7 @@ All `/api/*` routes use:
 - Failure: non-zero `code`, `data: null`, user-facing Chinese `msg`  
 - `/health` is **outside** this envelope  
 
-Codes: `shared/src/types/api.ts` — `BAD_REQUEST` 40000, `UNAUTHORIZED` 40100, `NOT_FOUND` 40400, `INTERNAL_ERROR` 50000.
+Codes: `shared/src/types/api.ts` — `BAD_REQUEST` 40000, `UNAUTHORIZED` 40100, `RATE_LIMITED` 42900, `NOT_FOUND` 40400, `INTERNAL_ERROR` 50000.
 
 Frontend unwrap: `frontend/src/apis/http/client.ts` (`apiGet` / `apiPost` / `apiPatch` / `apiDelete`). Authenticated `UNAUTHORIZED` with a Bearer attached triggers local auth+chat cleanup.
 
@@ -25,7 +25,7 @@ Frontend unwrap: `frontend/src/apis/http/client.ts` (`apiGet` / `apiPost` / `api
 
 | Method | Path | Auth | Notes |
 |--------|------|------|-------|
-| POST | `/api/auth/login` | public | Body `{ username, password }` → `{ token, username, expiresAt }` |
+| POST | `/api/auth/login` | public | Body `{ username, password }` → `{ token, username, expiresAt }`. Rate-limited (per IP request cap + failure lockout). New login revokes other sessions for the same user. |
 | POST | `/api/auth/logout` | Bearer preferred | Idempotent `{ ok: true }` even without valid token |
 | GET | `/api/auth/me` | Bearer | `{ username, expiresAt }`; expired/revoked → `UNAUTHORIZED` |
 
@@ -62,4 +62,4 @@ Notable chat behaviors:
 
 ## Planned (not this MVP)
 
-- HttpOnly cookie sessions, refresh tokens, CAPTCHA, OAuth, multi-user account service  
+- HttpOnly cookie sessions (Bearer still in localStorage — XSS can steal token), refresh tokens, CAPTCHA, OAuth, multi-user account service  

@@ -55,18 +55,26 @@ export async function fetchMe(): Promise<AuthMePayload> {
   }
 }
 
-/** Best-effort logout; server is idempotent. */
+/** Best-effort logout with one retry; server is idempotent. */
 export async function logout(): Promise<{ ok: true }> {
-  try {
-    return await apiPost<{ ok: true }>('/api/auth/logout', {});
-  } catch (err) {
-    if (err instanceof TypeError) {
-      throw new ApiError(ApiCode.INTERNAL_ERROR, AUTH_FALLBACK_NETWORK);
+  const attempt = async (): Promise<{ ok: true }> => {
+    try {
+      return await apiPost<{ ok: true }>('/api/auth/logout', {});
+    } catch (err) {
+      if (err instanceof TypeError) {
+        throw new ApiError(ApiCode.INTERNAL_ERROR, AUTH_FALLBACK_NETWORK);
+      }
+      throw new ApiError(
+        err instanceof ApiError ? err.code : ApiCode.INTERNAL_ERROR,
+        userFacingApiMessage(err, '退出登录失败，请稍后重试'),
+      );
     }
-    // Prefer not to block local cleanup on logout API failures.
-    throw new ApiError(
-      err instanceof ApiError ? err.code : ApiCode.INTERNAL_ERROR,
-      userFacingApiMessage(err, '退出登录失败，请稍后重试'),
-    );
+  };
+
+  try {
+    return await attempt();
+  } catch {
+    // One retry for transient network / 5xx before caller clears local state.
+    return await attempt();
   }
 }

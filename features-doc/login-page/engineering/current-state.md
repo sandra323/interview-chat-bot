@@ -52,8 +52,18 @@ last_verified: 2026-08-11
 
 | Item | Done | Missing |
 |------|------|---------|
-| Login rate limit | — | Optional in-memory limit (nice-to-have, not shipped) |
-| HttpOnly cookie session | Bearer + localStorage MVP | Cookie migration possible later |
+| HttpOnly cookie session | Bearer + localStorage MVP | Cookie migration reduces XSS token theft |
+
+---
+
+## Security hardening (post-MVP, shipped)
+
+- Login rate limit: 20 POSTs / 15 min per IP (before bcrypt); 5 failures / 15 min per IP and per username → `RATE_LIMITED` (42900)
+- Single active session per demo user: new login revokes peer sessions
+- WS stream fan-out skips unauthenticated / revoked sockets and closes them
+- Boot `/me`: only force-logout on `UNAUTHORIZED` or client `expiresAt` past; network/5xx keep session
+- Logout retries once; warns if server revoke failed while clearing local state
+- `purgeExpired` also deletes revoked rows; production Express `trust proxy` for IP
 
 ---
 

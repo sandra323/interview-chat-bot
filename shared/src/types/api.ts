@@ -13,6 +13,8 @@ export const ApiCode = {
   SUCCESS: 0,
   BAD_REQUEST: 40000,
   UNAUTHORIZED: 40100,
+  /** Too many requests (e.g. login brute-force / DoS guard). */
+  RATE_LIMITED: 42900,
   NOT_FOUND: 40400,
   INTERNAL_ERROR: 50000,
 } as const;

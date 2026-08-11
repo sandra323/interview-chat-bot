@@ -127,6 +127,30 @@ describe('AuthSessionStore', () => {
     ).toBe(false);
   });
 
+  it('purgeExpired also removes revoked (not-yet-expired) rows', () => {
+    const { store, dbPath } = createStore();
+    const now = 1_700_000_000_000;
+    const created = store.createSession('demo', 24, now);
+    store.revokeByToken(created.token, now + 1);
+    expect(store.purgeExpired(now + 2)).toBe(1);
+    expect(
+      tokenHashStored(
+        dbPath,
+        createHash('sha256').update(created.token, 'utf8').digest('hex'),
+      ),
+    ).toBe(false);
+  });
+
+  it('revokeAllForUsername keeps exceptSessionId', () => {
+    const { store } = createStore();
+    const now = 1_700_000_000_000;
+    const a = store.createSession('demo', 24, now);
+    const b = store.createSession('demo', 24, now + 1);
+    expect(store.revokeAllForUsername('demo', now + 2, b.id)).toBe(1);
+    expect(store.findValidByToken(a.token, now + 3)).toBeNull();
+    expect(store.findValidByToken(b.token, now + 3)?.id).toBe(b.id);
+  });
+
   it('findValidById fails when expired or revoked', () => {
     const { store } = createStore();
     const now = 1_700_000_000_000;

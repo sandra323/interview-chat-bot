@@ -7,6 +7,7 @@ import {
 } from '@ai-chat/shared';
 import { OpenAICompatibleAdapter } from '../adapters/openaiCompatible.js';
 import { LLMAdapterError } from '../adapters/types.js';
+import { getAuthSessionStore } from '../auth/sessionStore.js';
 import { getChatStore, type ChatStore } from '../store/chatStore.js';
 import type { ConnectionManager } from '../websocket/connectionManager.js';
 import { logger } from '../utils/logger.js';
@@ -93,9 +94,30 @@ export class GenerationRunner {
   }
 
   private broadcast(conversationId: string, message: ServerMessage): void {
+    const store = getAuthSessionStore();
     for (const connection of this.connections.getConnectionsForConversation(
       conversationId,
     )) {
+      // Do not fan-out to sockets that never authenticated or whose session
+      // was revoked/expired (e.g. re-login elsewhere or logout in another tab).
+      if (!connection.authenticated || !connection.sessionId) {
+        continue;
+      }
+      if (!store.findValidById(connection.sessionId)) {
+        connection.authenticated = false;
+        connection.sessionId = null;
+        if (connection.ws.readyState === connection.ws.OPEN) {
+          connection.ws.send(
+            JSON.stringify({
+              type: 'error',
+              code: 'UNAUTHORIZED',
+              message: '登录已过期，请重新登录',
+            } satisfies ServerMessage),
+          );
+          connection.ws.close();
+        }
+        continue;
+      }
       sendToWs(connection.ws, message);
     }
   }

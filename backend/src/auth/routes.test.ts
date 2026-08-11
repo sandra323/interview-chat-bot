@@ -8,6 +8,7 @@ import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import { ApiCode, DEFAULT_MODEL_ID } from '@ai-chat/shared';
 import { createApp } from '../server.js';
 import { resetAuthSessionStoreForTests } from './sessionStore.js';
+import { resetLoginRateGuardForTests } from './loginRateLimit.js';
 import type { ServerEnv } from '../config/env.js';
 
 describe('auth HTTP routes', () => {
@@ -24,6 +25,11 @@ describe('auth HTTP routes', () => {
     );
     paths.push(dbPath);
     resetAuthSessionStoreForTests(dbPath);
+    resetLoginRateGuardForTests({
+      windowMs: 60_000,
+      maxFailures: 5,
+      maxRequestsPerIp: 100,
+    });
 
     const env: ServerEnv = {
       port: 0,
@@ -174,5 +180,56 @@ describe('auth HTTP routes', () => {
     expect(res.status).toBe(200);
     const body = (await res.json()) as { status: string };
     expect(body.status).toBe('ok');
+  });
+
+  it('login rate-limits after repeated wrong passwords', async () => {
+    resetLoginRateGuardForTests({
+      windowMs: 60_000,
+      maxFailures: 3,
+      maxRequestsPerIp: 100,
+    });
+
+    for (let i = 0; i < 3; i++) {
+      const fail = await json('POST', '/api/auth/login', {
+        body: { username: 'demo', password: 'wrong' },
+      });
+      expect(fail.status).toBe(401);
+      expect(fail.body.code).toBe(ApiCode.UNAUTHORIZED);
+    }
+
+    const limited = await json('POST', '/api/auth/login', {
+      body: { username: 'demo', password: 'wrong' },
+    });
+    expect(limited.status).toBe(429);
+    expect(limited.body.code).toBe(ApiCode.RATE_LIMITED);
+    expect(limited.body.msg).toBe('尝试过于频繁，请稍后再试');
+
+    // Even correct password is blocked while locked out.
+    const blockedOk = await json('POST', '/api/auth/login', {
+      body: { username: 'demo', password: 'demo' },
+    });
+    expect(blockedOk.status).toBe(429);
+    expect(blockedOk.body.code).toBe(ApiCode.RATE_LIMITED);
+  });
+
+  it('new login revokes previous session for the same user', async () => {
+    const first = await json('POST', '/api/auth/login', {
+      body: { username: 'demo', password: 'demo' },
+    });
+    const token1 = (first.body.data as { token: string }).token;
+
+    const second = await json('POST', '/api/auth/login', {
+      body: { username: 'demo', password: 'demo' },
+    });
+    const token2 = (second.body.data as { token: string }).token;
+    expect(token2).not.toBe(token1);
+
+    const meOld = await json('GET', '/api/auth/me', { token: token1 });
+    expect(meOld.status).toBe(401);
+    expect(meOld.body.code).toBe(ApiCode.UNAUTHORIZED);
+
+    const meNew = await json('GET', '/api/auth/me', { token: token2 });
+    expect(meNew.status).toBe(200);
+    expect(meNew.body.code).toBe(ApiCode.SUCCESS);
   });
 });

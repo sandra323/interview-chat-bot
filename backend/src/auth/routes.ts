@@ -4,9 +4,13 @@ import type { ServerEnv } from '../config/env.js';
 import { sendFail, sendSuccess } from '../http/apiResponse.js';
 import { logger } from '../utils/logger.js';
 import { extractBearerToken } from './bearer.js';
+import { getClientIp } from './clientIp.js';
 import { verifyDemoCredentials } from './credentials.js';
+import { getLoginRateGuard } from './loginRateLimit.js';
 import { resolveBearerSession } from './resolveSession.js';
 import { getAuthSessionStore } from './sessionStore.js';
+
+const RATE_LIMIT_MSG = '尝试过于频繁，请稍后再试';
 
 /**
  * Auth HTTP routes.
@@ -18,6 +22,31 @@ export function createAuthRouter(env: ServerEnv): Router {
 
   router.post('/login', async (req, res) => {
     try {
+      const loginGuard = getLoginRateGuard();
+      const ip = getClientIp(req);
+      const usernameRaw =
+        typeof req.body?.username === 'string' ? req.body.username : '';
+
+      // Cap POSTs per IP before bcrypt (CPU DoS).
+      if (!loginGuard.tryBeginRequest(ip)) {
+        logger.warn('Auth login rate limited', { reason: 'request_cap' });
+        sendFail(res, {
+          code: ApiCode.RATE_LIMITED,
+          msg: RATE_LIMIT_MSG,
+        });
+        return;
+      }
+
+      // Failure lockout — reject before bcrypt when already locked.
+      if (loginGuard.isFailureBlocked(ip, usernameRaw)) {
+        logger.warn('Auth login rate limited', { reason: 'failure_lockout' });
+        sendFail(res, {
+          code: ApiCode.RATE_LIMITED,
+          msg: RATE_LIMIT_MSG,
+        });
+        return;
+      }
+
       const check = await verifyDemoCredentials({
         username: req.body?.username,
         password: req.body?.password,
@@ -40,6 +69,7 @@ export function createAuthRouter(env: ServerEnv): Router {
           });
           return;
         }
+        loginGuard.recordFailure(ip, usernameRaw);
         logger.warn('Auth login failed', { reason: 'credentials' });
         sendFail(res, {
           code: ApiCode.UNAUTHORIZED,
@@ -48,10 +78,25 @@ export function createAuthRouter(env: ServerEnv): Router {
         return;
       }
 
-      const session = getAuthSessionStore().createSession(
+      loginGuard.clearFailures(ip, check.username);
+
+      const store = getAuthSessionStore();
+      // Single active session per demo user: revoke peers after minting.
+      const session = store.createSession(
         check.username,
         env.authSessionTtlHours,
       );
+      const revokedPeers = store.revokeAllForUsername(
+        check.username,
+        Date.now(),
+        session.id,
+      );
+      if (revokedPeers > 0) {
+        logger.info('Auth revoked peer sessions on login', {
+          username: session.username,
+          revokedPeers,
+        });
+      }
 
       logger.info('Auth login success', { username: session.username });
       sendSuccess(res, {

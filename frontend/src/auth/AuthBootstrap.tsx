@@ -6,6 +6,7 @@ import { ApiError, userFacingApiMessage } from '@/apis/http/client';
 import { setUnauthorizedHandler } from '@/apis/http/tokenBridge';
 import { USE_MOCK } from '@/config/app';
 import { useAuthStore } from '@/store/useAuthStore';
+import { shouldForceLogoutOnBootMeFailure } from './bootSession';
 
 /**
  * After persist hydrate: probe /api/auth/me when a token exists.
@@ -66,14 +67,24 @@ export function AuthBootstrap() {
         if (cancelled) {
           return;
         }
-        const msg = userFacingApiMessage(
-          err,
-          err instanceof ApiError && err.code === ApiCode.UNAUTHORIZED
-            ? '登录已过期，请重新登录'
-            : '登录状态校验失败，请稍后重试',
+        const expiresAt = useAuthStore.getState().expiresAt;
+        if (shouldForceLogoutOnBootMeFailure(err, expiresAt)) {
+          const msg = userFacingApiMessage(
+            err,
+            err instanceof ApiError && err.code === ApiCode.UNAUTHORIZED
+              ? '登录已过期，请重新登录'
+              : '登录已过期，请重新登录',
+          );
+          forceLogoutLocal({ reason: 'boot' });
+          message.error(msg);
+          return;
+        }
+
+        // Transient failure: keep persisted session so the user is not kicked out.
+        setStatus('authenticated');
+        message.warning(
+          userFacingApiMessage(err, '登录状态校验失败，请稍后重试'),
         );
-        forceLogoutLocal({ reason: 'boot' });
-        message.error(msg);
       } finally {
         setUnauthorizedHandler(() => {
           useAuthStore.getState().forceLogoutLocal({ reason: 'unauthorized' });

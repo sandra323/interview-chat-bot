@@ -24,6 +24,11 @@ export function createApp(env: ServerEnv): express.Application {
   // Ensure auth_sessions schema exists on boot (same SQLite file as chat).
   getAuthSessionStore();
 
+  // Correct client IP behind reverse proxies (login rate limiting).
+  if (env.nodeEnv === 'production') {
+    app.set('trust proxy', 1);
+  }
+
   const corsOptions =
     env.nodeEnv === 'production'
       ? {
