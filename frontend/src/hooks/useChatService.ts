@@ -382,6 +382,10 @@ function useMockChatService() {
     setError(null);
   }, [setConnectionStatus, setError]);
 
+  const disconnect = useCallback(() => {
+    // Mock has no live socket
+  }, []);
+
   const clearConversation = useCallback(() => {
     const { conversationId, getPendingAssistant, markConversationGenerating } =
       useChatStore.getState();
@@ -494,6 +498,7 @@ function useMockChatService() {
     sendMessage,
     stopGeneration,
     reconnect,
+    disconnect,
     clearConversation,
     resetAfterConversationDeleted,
     switchConversation,
@@ -614,6 +619,10 @@ function useRealChatService() {
     setError(null);
     clientRef.current?.reconnect();
   }, [setError]);
+
+  const disconnect = useCallback(() => {
+    clientRef.current?.disconnect();
+  }, []);
 
   const clearConversation = useCallback(() => {
     const client = clientRef.current;
@@ -751,6 +760,7 @@ function useRealChatService() {
     sendMessage,
     stopGeneration,
     reconnect,
+    disconnect,
     clearConversation,
     resetAfterConversationDeleted,
     switchConversation,

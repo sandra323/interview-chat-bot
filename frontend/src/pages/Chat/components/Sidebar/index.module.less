@@ -205,10 +205,28 @@
 .userCard {
   display: flex;
   align-items: center;
-  gap: 8px;
   padding: 12px 16px;
   border-top: 1px solid var(--color-border);
   flex-shrink: 0;
+}
+
+.userCardTrigger {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  width: 100%;
+  margin: 0;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  color: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+
+.userMeta {
+  flex: 1;
+  min-width: 0;
 }
 
 .userName {
@@ -216,10 +234,20 @@
   font-size: 12px;
   font-weight: 500;
   color: #d1d5db;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .userPlan {
   margin: 0;
   font-size: 12px;
+  color: var(--color-text-quaternary);
+}
+
+/* No separate hover chrome on the ⋮ — whole card is the hit target */
+.userMore {
+  flex-shrink: 0;
+  font-size: 14px;
   color: var(--color-text-quaternary);
 }

@@ -4,14 +4,17 @@ import {
   DeleteOutlined,
   EditOutlined,
   EllipsisOutlined,
+  LogoutOutlined,
   PlusOutlined,
 } from '@ant-design/icons';
+import { logout } from '@/apis/auth';
 import {
   deleteConversation,
   fetchConversations,
   renameConversation,
   type ConversationListItem,
 } from '@/apis/conversations';
+import { useAuthStore } from '@/store/useAuthStore';
 import { displayConversationTitle } from '@/utils/conversationTitle';
 import styles from './index.module.less';
 
@@ -33,6 +36,8 @@ interface SidebarProps {
   onConversationDeleted?: (conversationId: string) => void;
   /** Active chat was renamed — parent should update header title */
   onConversationRenamed?: (conversationId: string, title: string) => void;
+  /** Disconnect live WS before clearing auth (no-op in mock) */
+  onDisconnect?: () => void;
 }
 
 function formatUpdatedAt(ts: number): string {
@@ -60,9 +65,13 @@ export default function Sidebar({
   onGeneratingSync,
   onConversationDeleted,
   onConversationRenamed,
+  onDisconnect,
 }: SidebarProps) {
   // App.useApp() modal inherits ConfigProvider dark theme (static Modal.confirm does not)
   const { modal } = App.useApp();
+  const username = useAuthStore((s) => s.username) || '用户';
+  const forceLogoutLocal = useAuthStore((s) => s.forceLogoutLocal);
+  const avatarChar = username.trim().charAt(0).toUpperCase() || '用';
   const shortModel = modelLabel.split(' ').slice(-1)[0] ?? modelLabel;
   const [items, setItems] = useState<ConversationListItem[]>([]);
   const [loading, setLoading] = useState(false);
@@ -183,6 +192,27 @@ export default function Sidebar({
     [modal, onConversationDeleted],
   );
 
+  const handleLogout = useCallback(() => {
+    modal.confirm({
+      title: '退出登录',
+      content: '确定退出当前登录吗？本地对话界面会被清空，服务端历史仍会保留。',
+      okText: '退出登录',
+      cancelText: '取消',
+      okButtonProps: { danger: true },
+      cancelButtonProps: { type: 'default' },
+      onOk: async () => {
+        try {
+          await logout();
+        } catch {
+          // Best-effort: still clear local session below.
+        } finally {
+          onDisconnect?.();
+          forceLogoutLocal({ reason: 'logout' });
+        }
+      },
+    });
+  }, [modal, onDisconnect, forceLogoutLocal]);
+
   return (
     <aside
       className={`${styles.sidebar} ${open ? styles.open : styles.closed}`}
@@ -299,13 +329,38 @@ export default function Sidebar({
         </div>
 
         <div className={styles.userCard}>
-          <Avatar size={28} style={{ background: 'var(--gradient-cta)', fontSize: 12 }}>
-            用
-          </Avatar>
-          <div>
-            <p className={styles.userName}>用户</p>
-            <p className={styles.userPlan}>免费版</p>
-          </div>
+          <Dropdown
+            trigger={['click']}
+            placement="topRight"
+            getPopupContainer={(node) =>
+              node.parentElement ?? document.body
+            }
+            menu={{
+              items: [
+                {
+                  key: 'logout',
+                  icon: <LogoutOutlined />,
+                  label: '退出登录',
+                  danger: true,
+                  onClick: () => handleLogout(),
+                },
+              ],
+            }}
+          >
+            <button type="button" className={styles.userCardTrigger}>
+              <Avatar
+                size={28}
+                style={{ background: 'var(--gradient-cta)', fontSize: 12 }}
+              >
+                {avatarChar}
+              </Avatar>
+              <div className={styles.userMeta}>
+                <p className={styles.userName}>{username}</p>
+                <p className={styles.userPlan}>免费版</p>
+              </div>
+              <EllipsisOutlined className={styles.userMore} aria-hidden />
+            </button>
+          </Dropdown>
         </div>
       </div>
 

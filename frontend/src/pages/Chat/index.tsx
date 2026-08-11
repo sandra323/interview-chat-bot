@@ -25,6 +25,7 @@ export default function ChatPage() {
     resetAfterConversationDeleted,
     switchConversation,
     loadOlderMessages,
+    disconnect,
   } = useChatService();
 
   const messages = useChatStore((s) => s.messages);
@@ -160,6 +161,7 @@ export default function ChatPage() {
           onGeneratingSync={handleGeneratingSync}
           onConversationDeleted={handleConversationDeleted}
           onConversationRenamed={handleConversationRenamed}
+          onDisconnect={disconnect}
         />
         <div className={styles.mainColumn}>
           <Main>
