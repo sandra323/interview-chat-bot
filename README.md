@@ -90,9 +90,16 @@ cp .env.example .env.local
 
 ```bash
 DEEPSEEK_API_KEY=sk-你的密钥
+
+# 演示登录账号（不要使用明文 AUTH_PASSWORD）
+AUTH_USERNAME=demo
+# 生成哈希（安装依赖后执行，勿把真实密码/哈希提交进 Git）：
+#   node -e "require('bcryptjs').hash('your-password', 10).then(console.log)"
+AUTH_PASSWORD_HASH=把上面命令输出的哈希贴到这里
+AUTH_SESSION_TTL_HOURS=24
 ```
 
-密钥只进后端进程环境变量，前端读不到。
+密钥与密码哈希只进后端进程环境变量，前端读不到。缺少 `AUTH_USERNAME` / `AUTH_PASSWORD_HASH` 时后端会直接退出。
 
 **5. 分别启动后端和前端**
 
@@ -192,6 +199,7 @@ backend/src/
 |------|------------|
 | Node 报奇怪的 `engine` 错 | 先 `nvm use`，确认 `node -v` ≥ 20 |
 | 后端一启动就退出：缺少 Key | 在根目录 `.env.local` 写好 `DEEPSEEK_API_KEY`，再重启后端 |
+| 后端一启动就退出：缺少 AUTH / hash 无效 | 在 `.env.local` 写好 `AUTH_USERNAME` 与合法的 `AUTH_PASSWORD_HASH`（见上文生成命令）；不要设置明文 `AUTH_PASSWORD` |
 | WebSocket 连不上 | 确认后端已启动，且 `USE_MOCK` 为 `false`；看 Vite 是否代理了 `/ws` |
 | 调大模型返回 401 | 检查**服务端**的 Key / `DEEPSEEK_API_URL` 是否正确 |
 | 提示模型不被允许 | 只用 `shared/src/config/models.ts` 白名单里的 id |
