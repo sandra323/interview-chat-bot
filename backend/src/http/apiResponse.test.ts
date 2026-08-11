@@ -30,16 +30,16 @@ describe('apiResponse helpers', () => {
     });
   });
 
-  it('sendFail returns null data and user msg', () => {
+  it('sendFail maps UNAUTHORIZED to HTTP 401', () => {
     const res = mockRes();
     sendFail(res as never, {
-      code: ApiCode.INTERNAL_ERROR,
-      msg: '哎呀，出错了',
+      code: ApiCode.UNAUTHORIZED,
+      msg: '请先登录',
     });
-    expect(res.statusCode).toBe(500);
+    expect(res.statusCode).toBe(401);
     expect(res.body).toEqual({
-      code: ApiCode.INTERNAL_ERROR,
-      msg: '哎呀，出错了',
+      code: ApiCode.UNAUTHORIZED,
+      msg: '请先登录',
       data: null,
     });
   });

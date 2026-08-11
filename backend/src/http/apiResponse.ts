@@ -30,9 +30,11 @@ export function sendFail(
     options.httpStatus ??
     (code === ApiCode.BAD_REQUEST
       ? 400
-      : code === ApiCode.NOT_FOUND
-        ? 404
-        : 500);
+      : code === ApiCode.UNAUTHORIZED
+        ? 401
+        : code === ApiCode.NOT_FOUND
+          ? 404
+          : 500);
 
   const body: ApiResponse<null> = {
     code,

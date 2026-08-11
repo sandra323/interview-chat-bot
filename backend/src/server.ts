@@ -11,6 +11,7 @@ import {
 } from './generation/runnerRegistry.js';
 import { getChatStore } from './store/chatStore.js';
 import { getAuthSessionStore } from './auth/sessionStore.js';
+import { createAuthRouter } from './auth/routes.js';
 import { sendFail, sendSuccess } from './http/apiResponse.js';
 import { logger } from './utils/logger.js';
 import type { ServerEnv } from './config/env.js';
@@ -45,6 +46,8 @@ export function createApp(env: ServerEnv): express.Application {
       llmConfigured: Boolean(env.llmApiKey),
     });
   });
+
+  app.use('/api/auth', createAuthRouter(env));
 
   // Sidebar history: list conversations (newest first)
   app.get('/api/conversations', (_req, res) => {

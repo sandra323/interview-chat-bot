@@ -135,6 +135,31 @@ export class AuthSessionStore {
     return row ?? null;
   }
 
+  /** Any session row for this token (including expired / revoked). */
+  lookupByToken(rawToken: string): AuthSessionRow | null {
+    if (!rawToken) {
+      return null;
+    }
+    const row = this.db
+      .prepare(
+        `SELECT id, username, created_at AS createdAt, expires_at AS expiresAt,
+                revoked_at AS revokedAt
+         FROM auth_sessions
+         WHERE token_hash = ?`,
+      )
+      .get(hashToken(rawToken)) as
+      | {
+          id: string;
+          username: string;
+          createdAt: number;
+          expiresAt: number;
+          revokedAt: number | null;
+        }
+      | undefined;
+
+    return row ?? null;
+  }
+
   /**
    * Mark session revoked. Idempotent: already-revoked / missing → false.
    */
