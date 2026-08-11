@@ -145,6 +145,8 @@ docker-compose up --build
 
 按 `docker-compose.yml` 里的端口映射，在浏览器打开对应地址（常见是 http://localhost ）。
 
+生产镜像里的 Nginx（`frontend/nginx.conf`）会把 **`/api`**、**`/ws`**、**`/health`** 反代到后端，与本地 Vite 代理一致；前端静态资源仍由 Nginx 直接提供。
+
 ---
 
 ## 安全说明（必读）
