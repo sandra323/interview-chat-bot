@@ -10,6 +10,8 @@ import { RateLimiter } from '../utils/rateLimiter.js';
 import { logger } from '../utils/logger.js';
 import { buildLlmConfig, readServerEnv } from '../config/env.js';
 import { getChatStore } from '../store/chatStore.js';
+import { getAuthSessionStore } from '../auth/sessionStore.js';
+import { resolveBearerSession } from '../auth/resolveSession.js';
 import type { GenerationRunner } from '../generation/generationRunner.js';
 
 const rateLimiter = new RateLimiter(10, 60_000);
@@ -19,6 +21,20 @@ function sendMessage(ws: ConnectionState['ws'], message: ServerMessage): void {
   if (ws.readyState === ws.OPEN) {
     ws.send(JSON.stringify(message));
   }
+}
+
+function closeUnauthorized(
+  connection: ConnectionState,
+  manager: ConnectionManager,
+  msg: string,
+): void {
+  manager.clearAuthDeadline(connection);
+  sendMessage(connection.ws, {
+    type: 'error',
+    code: 'UNAUTHORIZED',
+    message: msg,
+  });
+  connection.ws.close();
 }
 
 function parseClientMessage(raw: string): ClientMessage | null {
@@ -37,10 +53,57 @@ function parseClientMessage(raw: string): ClientMessage | null {
   }
 }
 
+function handleAuth(
+  message: Extract<ClientMessage, { type: 'auth' }>,
+  connection: ConnectionState,
+  manager: ConnectionManager,
+): void {
+  const token =
+    typeof message.token === 'string' ? message.token.trim() : '';
+  const result = resolveBearerSession(token || null);
+
+  if (!result.ok) {
+    logger.warn('WS auth failed', {
+      connectionId: connection.connectionId,
+      reason: 'credentials',
+    });
+    closeUnauthorized(connection, manager, result.msg);
+    return;
+  }
+
+  connection.authenticated = true;
+  connection.sessionId = result.auth.sessionId;
+  manager.clearAuthDeadline(connection);
+  logger.info('WS auth success', {
+    connectionId: connection.connectionId,
+    username: result.auth.username,
+  });
+  sendMessage(connection.ws, { type: 'auth_ok' });
+}
+
+/** Ensure still authenticated and session not expired/revoked. */
+function ensureAuthenticated(
+  connection: ConnectionState,
+  manager: ConnectionManager,
+): boolean {
+  if (!connection.authenticated || !connection.sessionId) {
+    closeUnauthorized(connection, manager, '请先登录');
+    return false;
+  }
+  const session = getAuthSessionStore().findValidById(connection.sessionId);
+  if (!session) {
+    connection.authenticated = false;
+    connection.sessionId = null;
+    closeUnauthorized(connection, manager, '登录已过期，请重新登录');
+    return false;
+  }
+  return true;
+}
+
 export async function handleMessage(
   raw: string,
   connection: ConnectionState,
-  _manager: ConnectionManager,
+  manager: ConnectionManager,
   runner: GenerationRunner,
 ): Promise<void> {
   const message = parseClientMessage(raw);
@@ -55,6 +118,15 @@ export async function handleMessage(
   }
 
   if (message.type === 'ping') {
+    return;
+  }
+
+  if (message.type === 'auth') {
+    handleAuth(message, connection, manager);
+    return;
+  }
+
+  if (!ensureAuthenticated(connection, manager)) {
     return;
   }
 

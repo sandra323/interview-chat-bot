@@ -217,6 +217,25 @@ export function attachWebSocketServer(server: Server): WebSocketServer {
       }),
     );
 
+    connectionManager.armAuthDeadline(connection, () => {
+      if (connection.authenticated) {
+        return;
+      }
+      logger.warn('WS auth deadline exceeded', {
+        connectionId: connection.connectionId,
+      });
+      if (ws.readyState === ws.OPEN) {
+        ws.send(
+          JSON.stringify({
+            type: 'error',
+            code: 'UNAUTHORIZED',
+            message: '请先登录',
+          }),
+        );
+        ws.close();
+      }
+    });
+
     ws.on('message', async (data) => {
       try {
         const raw = data.toString();

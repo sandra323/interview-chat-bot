@@ -160,6 +160,36 @@ export class AuthSessionStore {
     return row ?? null;
   }
 
+  /** Valid session by primary key (for WS re-checks without raw token). */
+  findValidById(
+    sessionId: string,
+    now: number = Date.now(),
+  ): AuthSessionRow | null {
+    if (!sessionId) {
+      return null;
+    }
+    const row = this.db
+      .prepare(
+        `SELECT id, username, created_at AS createdAt, expires_at AS expiresAt,
+                revoked_at AS revokedAt
+         FROM auth_sessions
+         WHERE id = ?
+           AND revoked_at IS NULL
+           AND expires_at > ?`,
+      )
+      .get(sessionId, now) as
+      | {
+          id: string;
+          username: string;
+          createdAt: number;
+          expiresAt: number;
+          revokedAt: number | null;
+        }
+      | undefined;
+
+    return row ?? null;
+  }
+
   /**
    * Mark session revoked. Idempotent: already-revoked / missing → false.
    */
