@@ -7,15 +7,18 @@ export type ErrorCode =
   | 'RATE_LIMITED'
   | 'INVALID_MESSAGE'
   | 'INTERNAL_ERROR'
-  | 'NOT_FOUND';
+  | 'NOT_FOUND'
+  | 'UNAUTHORIZED';
 
 export type ReplyEndReason = 'completed' | 'cancelled';
 
 /**
  * Client → server. No API keys — credentials live only on the server.
  * `model` is an optional allowlisted preference (non-secret).
+ * Auth: after `connected`, client must send `{ type: 'auth', token }` before chat.
  */
 export type ClientMessage =
+  | { type: 'auth'; token: string }
   | {
       type: 'chat';
       content: string;
@@ -35,6 +38,8 @@ export type ClientMessage =
 
 export type ServerMessage =
   | { type: 'connected'; connectionId: string }
+  /** Session accepted after client `auth` message */
+  | { type: 'auth_ok' }
   /** Bound conversation, or null when the client reset to a blank new chat */
   | { type: 'session'; conversationId: string | null }
   | {
