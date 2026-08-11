@@ -10,6 +10,7 @@ import {
   registerGenerationRunner,
 } from './generation/runnerRegistry.js';
 import { getChatStore } from './store/chatStore.js';
+import { getAuthSessionStore } from './auth/sessionStore.js';
 import { sendFail, sendSuccess } from './http/apiResponse.js';
 import { logger } from './utils/logger.js';
 import type { ServerEnv } from './config/env.js';
@@ -17,6 +18,9 @@ import { ApiCode } from '@ai-chat/shared';
 
 export function createApp(env: ServerEnv): express.Application {
   const app = express();
+
+  // Ensure auth_sessions schema exists on boot (same SQLite file as chat).
+  getAuthSessionStore();
 
   const corsOptions =
     env.nodeEnv === 'production'
@@ -256,6 +260,12 @@ export function setupGracefulShutdown(
 
     try {
       getChatStore().close();
+    } catch {
+      // ignore
+    }
+
+    try {
+      getAuthSessionStore().close();
     } catch {
       // ignore
     }
