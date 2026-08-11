@@ -125,8 +125,8 @@ export default function Sidebar({
   }, []);
 
   const handleRenameOk = useCallback(async () => {
-    if (!renameTarget) {
-      return Promise.reject(new Error('missing target'));
+    if (!renameTarget || renameSaving) {
+      return Promise.reject(new Error('busy'));
     }
     const next = renameValue.trim();
     if (!next) {
@@ -152,7 +152,7 @@ export default function Sidebar({
     } finally {
       setRenameSaving(false);
     }
-  }, [renameTarget, renameValue, onConversationRenamed]);
+  }, [renameTarget, renameValue, renameSaving, onConversationRenamed]);
 
   const handleDelete = useCallback(
     (item: ConversationListItem) => {
@@ -215,6 +215,7 @@ export default function Sidebar({
               Boolean(item.generating) ||
               generatingConversationIds.includes(item.id);
             const menuOpen = menuOpenId === item.id;
+            const titleDisplay = displayConversationTitle(item.title);
             return (
               <div
                 key={item.id}
@@ -235,11 +236,8 @@ export default function Sidebar({
                 aria-current={active ? 'true' : undefined}
               >
                 <div className={styles.historyTitleRow}>
-                  <p
-                    className={styles.historyTitle}
-                    title={displayConversationTitle(item.title)}
-                  >
-                    {displayConversationTitle(item.title)}
+                  <p className={styles.historyTitle} title={titleDisplay}>
+                    {titleDisplay}
                   </p>
                   {generating ? (
                     <span
@@ -328,6 +326,7 @@ export default function Sidebar({
           placeholder="请输入新的对话名称"
           onChange={(e) => setRenameValue(e.target.value)}
           onPressEnter={() => {
+            if (renameSaving) return;
             void handleRenameOk();
           }}
         />
