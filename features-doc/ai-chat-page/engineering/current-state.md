@@ -62,7 +62,7 @@ last_verified: 2026-08-11
 
 | Item | Status | Notes |
 |------|--------|-------|
-| User login / accounts | **planned** | Tracked under `features-doc/login-page/` |
+| User login / accounts | **shipped** | See `features-doc/login-page/engineering/current-state.md` (demo env user; shared history) |
 | Client-side API key / ConfigPanel UX | **deprecated** | Replaced by server key; decision `001` |
 | Theme toggle (light/dark) | **planned** | Locked to dark only |
 | File / image / voice input | **planned** | Out of current MVP |

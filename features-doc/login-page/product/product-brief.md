@@ -3,12 +3,11 @@
 ```yaml
 feature: login-page
 doc_role: design-intent
-status: planned
+status: shipped
 last_verified: 2026-08-11
 ```
 
-> Design intent only. All capabilities below are **planned** (not implemented). After shipping, add `engineering/current-state.md` and update status labels.  
-> Related: [`../README.md`](../README.md), chat [`../../ai-chat-page/engineering/current-state.md`](../../ai-chat-page/engineering/current-state.md), visuals [`../../shared/design-system.md`](../../shared/design-system.md).
+> Design intent. Implementation truth: [`../engineering/current-state.md`](../engineering/current-state.md).
 
 ## 1. Product Overview
 - What the product is: **Login gate + logout** for this repo’s AI chat app (login page + logout from the chat sidebar user area)

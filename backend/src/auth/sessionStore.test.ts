@@ -127,6 +127,18 @@ describe('AuthSessionStore', () => {
     ).toBe(false);
   });
 
+  it('findValidById fails when expired or revoked', () => {
+    const { store } = createStore();
+    const now = 1_700_000_000_000;
+    const created = store.createSession('demo', 1, now);
+    expect(store.findValidById(created.id, now + 1000)?.username).toBe('demo');
+    expect(store.findValidById(created.id, created.expiresAt + 1)).toBeNull();
+
+    const live = store.createSession('demo', 24, now);
+    store.revokeByToken(live.token, now + 1);
+    expect(store.findValidById(live.id, now + 2)).toBeNull();
+  });
+
   it('survives reopen on the same sqlite file', () => {
     const dbPath = path.join(
       os.tmpdir(),

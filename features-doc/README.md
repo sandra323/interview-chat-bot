@@ -26,7 +26,7 @@ features-doc/
 ├── _templates/               ← copy when starting a new feature
 ├── shared/                   ← cross-feature contracts & conventions
 ├── ai-chat-page/             ← chat SPA feature
-└── login-page/               ← planned auth (stub)
+└── login-page/               ← login gate + logout (**shipped**)
 ```
 
 ## Read map (by task)
@@ -39,7 +39,7 @@ features-doc/
 | Coding style / antd vs native | [`shared/coding-conventions.md`](shared/coding-conventions.md) |
 | Architecture overview | [`shared/architecture.md`](shared/architecture.md) |
 | Why API key is server-only | [`ai-chat-page/decisions/001-api-key-server-side.md`](ai-chat-page/decisions/001-api-key-server-side.md) |
-| Start login page | [`login-page/README.md`](login-page/README.md) → `_templates/` → `shared/*` |
+| Login / session / logout | [`login-page/README.md`](login-page/README.md) → [`engineering/current-state.md`](login-page/engineering/current-state.md) |
 | Original MVP plan / milestones | `*/engineering/build-spec.md`, `execution-backlog.md` (**historical** — verify against `current-state`) |
 
 ## Rules for maintaining these docs

@@ -3,11 +3,11 @@
 ```yaml
 feature: login-page
 doc_role: design-intent
-status: planned
+status: shipped
 last_verified: 2026-08-11
 ```
 
-> Implements [`product/product-brief.md`](../product/product-brief.md). All items **planned** until coded. After ship, add `engineering/current-state.md`.  
+> Implements [`product/product-brief.md`](../product/product-brief.md). **Shipped** — see [`current-state.md`](./current-state.md) for what runs in code.  
 > Extends existing monorepo; does **not** replace chat stack.
 
 ## 1. Technical Summary

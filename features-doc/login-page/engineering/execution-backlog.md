@@ -3,12 +3,12 @@
 ```yaml
 feature: login-page
 doc_role: execution-backlog
-status: planned
+status: shipped
 source: engineering/build-spec.md
 last_verified: 2026-08-11
 ```
 
-> Source of truth: [`build-spec.md`](./build-spec.md). Stay in MVP scope. Execute **one task at a time**.
+> Source of truth for *design*: [`build-spec.md`](./build-spec.md). **Implementation truth**: [`current-state.md`](./current-state.md). This backlog is **historical** after ship.
 
 ## 1. Execution Strategy
 
