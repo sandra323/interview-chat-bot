@@ -28,7 +28,7 @@ export class WebSocketClient {
   private statusHandler: StatusHandler | null = null;
   private manualClose = false;
   private reconnectAttempts = 0;
-  private maxReconnectAttempts = 3;
+  private maxReconnectAttempts = 5;
   private reconnectTimer: ReturnType<typeof setTimeout> | null = null;
   /** False until skipAuth or server `auth_ok`. */
   private authReady = false;
@@ -203,7 +203,10 @@ export class WebSocketClient {
       return;
     }
 
-    const delay = Math.pow(2, this.reconnectAttempts) * 1000;
+    // Exponential backoff: ~1s, 2s, 4s, 8s, 16s + up to 30% random jitter
+    const baseDelayMs = Math.pow(2, this.reconnectAttempts) * 1000;
+    const jitterMs = Math.random() * baseDelayMs * 0.3;
+    const delay = Math.round(baseDelayMs + jitterMs);
     this.reconnectAttempts += 1;
 
     this.clearReconnectTimer();
