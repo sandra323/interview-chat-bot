@@ -1,6 +1,7 @@
 import { create } from 'zustand';
 import { persist } from 'zustand/middleware';
 import { DEFAULT_MODEL_ID, type ConnectionStatus, type Message } from '@ai-chat/shared';
+import { newId } from '@/utils/id';
 
 interface UIState {
   loading: boolean;
@@ -228,7 +229,7 @@ export function createMessage(
   id?: string,
 ): Message {
   return {
-    id: id ?? crypto.randomUUID(),
+    id: id ?? newId(),
     role,
     content,
     timestamp: Date.now(),

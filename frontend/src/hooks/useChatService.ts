@@ -21,6 +21,7 @@ import {
   alignReplyDelta,
   mergeCatchupContent,
 } from '@/utils/replyStreamAlign';
+import { newId } from '@/utils/id';
 import { getWebSocketUrl, isValidMessage } from '@/utils/validators';
 
 const MOCK_CHUNK_SIZE = 4;
@@ -569,7 +570,7 @@ function useMockChatService() {
 
       timerRef.current = setTimeout(() => {
         const full = generateMockReply(trimmed);
-        const messageId = crypto.randomUUID();
+        const messageId = newId();
         generationIdRef.current = messageId;
         const { addMessage: add, appendMessageContent, updateMessage } =
           useChatStore.getState();

@@ -12,7 +12,7 @@ COPY tsconfig.base.json ./
 COPY shared/ ./shared/
 COPY frontend/ ./frontend/
 
-RUN npm run build --workspace=frontend
+RUN npm run build --workspace=shared && npm run build --workspace=frontend
 
 FROM nginx:alpine AS runner
 

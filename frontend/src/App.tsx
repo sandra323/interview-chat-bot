@@ -22,7 +22,7 @@ const antdTheme = {
     colorTextSecondary: '#9ca3af',
     colorError: '#ef4444',
     borderRadius: 8,
-    fontFamily: "'Inter', system-ui, sans-serif",
+    fontFamily: "system-ui, -apple-system, 'Segoe UI', sans-serif",
   },
   components: {
     Select: {

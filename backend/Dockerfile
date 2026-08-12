@@ -6,13 +6,15 @@ COPY package.json package-lock.json* ./
 COPY shared/package.json ./shared/
 COPY backend/package.json ./backend/
 
-RUN npm install --workspace=backend --workspace=shared
+RUN sed -i 's/dl-cdn.alpinelinux.org/mirrors.aliyun.com/g' /etc/apk/repositories \
+  && apk add --no-cache python3 make g++ \
+  && npm install --workspace=backend --workspace=shared
 
 COPY tsconfig.base.json ./
 COPY shared/ ./shared/
 COPY backend/ ./backend/
 
-RUN npm run build --workspace=backend
+RUN npm run build --workspace=shared && npm run build --workspace=backend
 
 FROM node:20-alpine AS runner
 
@@ -25,7 +27,10 @@ COPY package.json package-lock.json* ./
 COPY shared/package.json ./shared/
 COPY backend/package.json ./backend/
 
-RUN npm install --workspace=backend --workspace=shared --omit=dev
+RUN sed -i 's/dl-cdn.alpinelinux.org/mirrors.aliyun.com/g' /etc/apk/repositories \
+  && apk add --no-cache python3 make g++ \
+  && npm install --workspace=backend --workspace=shared --omit=dev \
+  && apk del python3 make g++
 
 COPY --from=builder /app/backend/dist ./backend/dist
 COPY --from=builder /app/shared ./shared
