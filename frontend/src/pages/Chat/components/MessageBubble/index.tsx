@@ -1,22 +1,20 @@
+import { memo } from 'react';
 import { Button, message as antdMessage } from 'antd';
 import { Streamdown } from 'streamdown';
 import type { Message } from '@ai-chat/shared';
 import CatBotIcon from '@/components/CatBotIcon';
 import { formatTime } from '@/utils/formatTime';
-import { useChatStore } from '@/store/useChatStore';
-import { MODEL_OPTIONS } from '@/config/models';
 import styles from './index.module.less';
 
 interface MessageBubbleProps {
   message: Message;
+  /** Resolved label from parent — avoids every bubble subscribing to the store. */
+  modelLabel: string;
 }
 
-export default function MessageBubble({ message }: MessageBubbleProps) {
+function MessageBubble({ message, modelLabel }: MessageBubbleProps) {
   const isUser = message.role === 'user';
   const isPending = message.status === 'pending';
-  const model = useChatStore((s) => s.model);
-  const modelLabel =
-    MODEL_OPTIONS.find((m) => m.id === model)?.label ?? model;
 
   const handleCopy = async () => {
     try {
@@ -90,3 +88,6 @@ export default function MessageBubble({ message }: MessageBubbleProps) {
     </div>
   );
 }
+
+/** Same message object reference → skip re-render while a sibling streams. */
+export default memo(MessageBubble);

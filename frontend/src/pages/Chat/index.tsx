@@ -28,7 +28,10 @@ export default function ChatPage() {
     disconnect,
   } = useChatService();
 
-  const messages = useChatStore((s) => s.messages);
+  const messageCount = useChatStore((s) => s.messages.length);
+  const hasPendingAssistant = useChatStore((s) =>
+    s.messages.some((m) => m.role === 'assistant' && m.status === 'pending'),
+  );
   const conversationId = useChatStore((s) => s.conversationId);
   const conversationTitle = useChatStore((s) => s.conversationTitle);
   const model = useChatStore((s) => s.model);
@@ -58,9 +61,9 @@ export default function ChatPage() {
   );
 
   const handleNewChat = useCallback(() => {
-    if (messages.length === 0) return;
+    if (messageCount === 0) return;
     clearConversation();
-  }, [clearConversation, messages.length]);
+  }, [clearConversation, messageCount]);
 
   const handleSelectConversation = useCallback(
     (id: string, title: string) => {
@@ -105,10 +108,8 @@ export default function ChatPage() {
 
   // Stop / generating UI only for the *current* conversation
   const isGenerating = useMemo(
-    () =>
-      ui.loading ||
-      messages.some((m) => m.role === 'assistant' && m.status === 'pending'),
-    [messages, ui.loading],
+    () => ui.loading || hasPendingAssistant,
+    [hasPendingAssistant, ui.loading],
   );
 
   // Refresh sidebar only when a reply finishes (not on every mount)
@@ -155,7 +156,7 @@ export default function ChatPage() {
           activeConversationId={conversationId}
           generatingConversationIds={generatingConversationIds}
           modelLabel={modelLabel}
-          newChatDisabled={messages.length === 0}
+          newChatDisabled={messageCount === 0}
           onNewChat={handleNewChat}
           onSelectConversation={handleSelectConversation}
           onGeneratingSync={handleGeneratingSync}
@@ -167,7 +168,6 @@ export default function ChatPage() {
           <Main>
             <section className={styles.chatArea} aria-label="Chat conversation">
               <MessageList
-                messages={messages}
                 loading={ui.loading && !isGenerating}
                 modelLabel={modelLabel}
                 onSuggestion={handleSuggestion}

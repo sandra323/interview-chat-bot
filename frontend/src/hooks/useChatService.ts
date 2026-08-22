@@ -21,6 +21,13 @@ import {
   alignReplyDelta,
   mergeCatchupContent,
 } from '@/utils/replyStreamAlign';
+import {
+  discardReplyDeltaQueue,
+  enqueueReplyDelta,
+  flushReplyDeltaQueue,
+  setReplyDeltaFlushHandler,
+  type QueuedReplyDelta,
+} from '@/utils/replyDeltaBatcher';
 import { newId } from '@/utils/id';
 import { getWebSocketUrl, isValidMessage } from '@/utils/validators';
 
@@ -78,6 +85,7 @@ function clearAllCatchupState(): void {
   awaitingCatchup.clear();
   awaitingConversationCatchup.clear();
   lastGapResumeAt.clear();
+  discardReplyDeltaQueue();
 }
 
 function pushCatchupBuffer(
@@ -126,6 +134,78 @@ function requestGapCatchup(
   });
 }
 
+/**
+ * Apply one or more aligned deltas to the store in a single write when possible.
+ * Used by the rAF batcher and by catch-up flush (immediate).
+ */
+function applyAlignedReplyDeltaBatch(
+  generationId: string,
+  items: QueuedReplyDelta[],
+): void {
+  if (items.length === 0) return;
+
+  const { messages, addMessage, updateMessage } = useChatStore.getState();
+  let msg = messages.find((m) => m.id === generationId);
+  let content = msg?.content ?? '';
+  let dirty = false;
+
+  const commit = () => {
+    if (!dirty) return;
+    if (!msg) {
+      addMessage(
+        createMessage('assistant', content, 'pending', generationId),
+      );
+      msg = useChatStore
+        .getState()
+        .messages.find((m) => m.id === generationId);
+    } else {
+      updateMessage(generationId, { content, status: 'pending' });
+    }
+    dirty = false;
+  };
+
+  for (let i = 0; i < items.length; i += 1) {
+    const { conversationId, delta, offset } = items[i];
+
+    if (awaitingConversationCatchup.has(conversationId)) {
+      beginAwaitingCatchup(conversationId, generationId);
+    }
+
+    const pending = awaitingCatchup.get(generationId);
+    if (pending) {
+      commit();
+      for (const rest of items.slice(i)) {
+        pushCatchupBuffer(pending, rest.delta, rest.offset);
+      }
+      return;
+    }
+
+    const result = alignReplyDelta(content, delta, offset);
+
+    if (result.action === 'ignore') continue;
+
+    if (result.action === 'gap') {
+      commit();
+      requestGapCatchup(conversationId, generationId, content.length);
+      const entry = awaitingCatchup.get(generationId);
+      if (entry) {
+        for (const rest of items.slice(i)) {
+          pushCatchupBuffer(entry, rest.delta, rest.offset);
+        }
+      }
+      return;
+    }
+
+    content = result.content;
+    dirty = true;
+  }
+
+  commit();
+}
+
+setReplyDeltaFlushHandler(applyAlignedReplyDeltaBatch);
+
+/** Live path: queue for rAF coalesce. Catch-up waiters still buffer immediately. */
 function applyAlignedReplyDelta(
   conversationId: string,
   generationId: string,
@@ -142,25 +222,7 @@ function applyAlignedReplyDelta(
     return;
   }
 
-  const { messages, addMessage, updateMessage } = useChatStore.getState();
-  const msg = messages.find((m) => m.id === generationId);
-  const current = msg?.content ?? '';
-  const result = alignReplyDelta(current, delta, offset);
-
-  if (result.action === 'ignore') return;
-
-  if (result.action === 'gap') {
-    requestGapCatchup(conversationId, generationId, current.length);
-    return;
-  }
-
-  if (!msg) {
-    addMessage(
-      createMessage('assistant', result.content, 'pending', generationId),
-    );
-  } else {
-    updateMessage(generationId, { content: result.content, status: 'pending' });
-  }
+  enqueueReplyDelta(conversationId, generationId, delta, offset);
 }
 
 function flushBufferedDeltas(generationId: string): void {
@@ -169,23 +231,17 @@ function flushBufferedDeltas(generationId: string): void {
   const items = [...pending.buffer].sort((a, b) => a.offset - b.offset);
   awaitingCatchup.delete(generationId);
 
-  for (let i = 0; i < items.length; i += 1) {
-    applyAlignedReplyDelta(
-      pending.conversationId,
-      generationId,
-      items[i].delta,
-      items[i].offset,
-    );
-    if (awaitingCatchup.has(generationId)) {
-      const entry = awaitingCatchup.get(generationId);
-      if (entry) {
-        for (const rest of items.slice(i + 1)) {
-          pushCatchupBuffer(entry, rest.delta, rest.offset);
-        }
-      }
-      return;
-    }
-  }
+  // Apply immediately (already behind catchup) — one batch write.
+  applyAlignedReplyDeltaBatch(
+    generationId,
+    items.map((item) => ({
+      conversationId: pending.conversationId,
+      delta: item.delta,
+      offset: item.offset,
+    })),
+  );
+
+  // If a gap re-opened awaitingCatchup, remaining live path is buffered there.
 }
 
 function mapHistoryItem(item: ConversationMessageItem): Message | null {
@@ -408,6 +464,8 @@ function handleServerMessage(raw: string): void {
       );
       break;
     case 'reply_catchup': {
+      // Apply any coalesced live deltas before merging the catchup snapshot.
+      flushReplyDeltaQueue(message.generationId);
       if (message.done) {
         clearConversationGenerating(message.conversationId);
       } else {
@@ -416,6 +474,7 @@ function handleServerMessage(raw: string): void {
       if (!isActiveConversation(message.conversationId)) {
         clearAwaitingCatchup(message.generationId);
         awaitingConversationCatchup.delete(message.conversationId);
+        discardReplyDeltaQueue(message.generationId);
         break;
       }
       const msg = useChatStore
@@ -449,6 +508,8 @@ function handleServerMessage(raw: string): void {
       break;
     }
     case 'reply_end':
+      // End payload is authoritative — drop unapplied coalesced deltas.
+      discardReplyDeltaQueue(message.generationId);
       clearConversationGenerating(message.conversationId);
       clearAwaitingCatchup(message.generationId);
       awaitingConversationCatchup.delete(message.conversationId);

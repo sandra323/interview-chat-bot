@@ -2,14 +2,15 @@ import {
   useCallback,
   useEffect,
   useLayoutEffect,
+  useMemo,
   useRef,
   useState,
   type RefObject,
 } from 'react';
 import { Button } from 'antd';
-import type { Message } from '@ai-chat/shared';
 import CatBotIcon from '@/components/CatBotIcon';
 import { SUGGESTIONS } from '@/config/models';
+import { useChatStore } from '@/store/useChatStore';
 import { isNearBottom, scrollToBottom } from '@/utils/scrollHelper';
 import MessageBubble from '../MessageBubble';
 import TypingIndicator from '../TypingIndicator';
@@ -19,7 +20,6 @@ const STICK_THRESHOLD_PX = 30;
 const LOAD_OLDER_TOP_PX = 80;
 
 interface MessageListProps {
-  messages: Message[];
   loading: boolean;
   modelLabel: string;
   onSuggestion: (text: string) => void;
@@ -33,7 +33,6 @@ interface MessageListProps {
 }
 
 export default function MessageList({
-  messages,
   loading,
   modelLabel,
   onSuggestion,
@@ -43,12 +42,21 @@ export default function MessageList({
   loadingOlder,
   onLoadOlder,
 }: MessageListProps) {
+  // Subscribe here so ChatPage chrome is not forced to re-render on every delta.
+  const messages = useChatStore((s) => s.messages);
   const [showScrollBtn, setShowScrollBtn] = useState(false);
   const stickToBottomRef = useRef(true);
   const prevScrollHeightRef = useRef<number | null>(null);
   const isPrependingRef = useRef(false);
 
-  // After switching conversation, jump to latest (do not depend on messages.length)
+  const lastMessage = messages[messages.length - 1];
+  /** Stick-to-bottom only when the tail message grows/changes — not on array identity. */
+  const stickScrollKey = useMemo(() => {
+    if (!lastMessage) return `empty:${loading ? 1 : 0}`;
+    return `${lastMessage.id}:${lastMessage.content.length}:${lastMessage.status}`;
+  }, [lastMessage, loading]);
+
+  // After switching conversation, jump to latest
   useEffect(() => {
     stickToBottomRef.current = true;
     isPrependingRef.current = false;
@@ -99,7 +107,6 @@ export default function MessageList({
   useEffect(() => {
     const container = scrollContainerRef.current;
     if (!container) return;
-    // Do not fight scroll restoration while prepending older pages
     if (isPrependingRef.current || loadingOlder) return;
     if (!stickToBottomRef.current) return;
 
@@ -107,7 +114,7 @@ export default function MessageList({
       scrollToBottom(container);
       setShowScrollBtn(false);
     });
-  }, [messages, loading, loadingOlder, scrollContainerRef]);
+  }, [stickScrollKey, loadingOlder, scrollContainerRef]);
 
   const scrollToBottomClick = () => {
     const container = scrollContainerRef.current;
@@ -169,7 +176,11 @@ export default function MessageList({
             </p>
           ) : null}
           {messages.map((msg) => (
-            <MessageBubble key={msg.id} message={msg} />
+            <MessageBubble
+              key={msg.id}
+              message={msg}
+              modelLabel={modelLabel}
+            />
           ))}
           {loading && <TypingIndicator />}
         </div>
