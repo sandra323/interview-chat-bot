@@ -2,6 +2,8 @@ FROM node:20-alpine AS builder
 
 WORKDIR /app
 
+ENV NPM_CONFIG_REGISTRY=https://registry.npmmirror.com
+
 COPY package.json package-lock.json* ./
 COPY shared/package.json ./shared/
 COPY frontend/package.json ./frontend/

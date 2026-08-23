@@ -16,6 +16,8 @@ services:
       - AUTH_SESSION_TTL_HOURS=${AUTH_SESSION_TTL_HOURS:-24}
       - CORS_ORIGIN=${CORS_ORIGIN:-http://localhost}
     restart: unless-stopped
+    volumes:
+      - chat-data:/app/backend/.data
     healthcheck:
       test: ["CMD", "wget", "-qO-", "http://localhost:3001/health"]
       interval: 30s
@@ -33,3 +35,6 @@ services:
       backend:
         condition: service_healthy
     restart: unless-stopped
+
+volumes:
+  chat-data:

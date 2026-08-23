@@ -2,6 +2,9 @@ FROM node:20-alpine AS builder
 
 WORKDIR /app
 
+ENV NPM_CONFIG_REGISTRY=https://registry.npmmirror.com
+ENV npm_config_nodedir=/usr/local
+
 COPY package.json package-lock.json* ./
 COPY shared/package.json ./shared/
 COPY backend/package.json ./backend/
@@ -23,16 +26,9 @@ WORKDIR /app
 ENV NODE_ENV=production
 ENV PORT=3001
 
-COPY package.json package-lock.json* ./
-COPY shared/package.json ./shared/
-COPY backend/package.json ./backend/
-
-RUN sed -i 's/dl-cdn.alpinelinux.org/mirrors.aliyun.com/g' /etc/apk/repositories \
-  && apk add --no-cache python3 make g++ \
-  && npm install --workspace=backend --workspace=shared --omit=dev \
-  && apk del python3 make g++
-
-COPY --from=builder /app/backend/dist ./backend/dist
+COPY package.json ./
+COPY --from=builder /app/node_modules ./node_modules
+COPY --from=builder /app/backend ./backend
 COPY --from=builder /app/shared ./shared
 
 WORKDIR /app/backend
