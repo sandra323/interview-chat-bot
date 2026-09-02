@@ -12,12 +12,15 @@
   },
   "dependencies": {
     "@ai-chat/shared": "file:../shared",
+    "@langchain/openai": "^1.5.8",
     "bcryptjs": "^3.0.3",
     "better-sqlite3": "^12.11.1",
     "cors": "^2.8.5",
     "dotenv": "^17.4.2",
     "express": "^4.21.2",
-    "ws": "^8.18.0"
+    "langchain": "^1.5.10",
+    "ws": "^8.18.0",
+    "zod": "^4.5.4"
   },
   "devDependencies": {
     "@types/better-sqlite3": "^9.6.0",
