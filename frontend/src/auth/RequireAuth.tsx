@@ -4,9 +4,9 @@ import { USE_MOCK } from '@/config/app';
 import { useAuthStore } from '@/store/useAuthStore';
 
 /**
- * Protects Chat (`/`). Waits while auth status is `unknown`.
+ * 保护 Chat（`/`）。auth 状态为 `unknown` 时等待。
  *
- * USE_MOCK: intentionally skips the gate for UI-only demos without a backend.
+ * USE_MOCK：为无后端的纯 UI 演示有意跳过门禁。
  */
 export function RequireAuth({ children }: { children: ReactNode }) {
   const status = useAuthStore((s) => s.status);

@@ -23,9 +23,9 @@ interface MessageListProps {
   loading: boolean;
   modelLabel: string;
   onSuggestion: (text: string) => void;
-  /** Chat-only scroll container (sidebar stays fixed) */
+  /** 仅聊天区滚动容器（侧栏固定） */
   scrollContainerRef: RefObject<HTMLDivElement>;
-  /** Reset stick-to-bottom when switching conversations */
+  /** 切换对话时重置贴底滚动 */
   conversationId: string | null;
   hasMoreHistory: boolean;
   loadingOlder: boolean;
@@ -42,7 +42,7 @@ export default function MessageList({
   loadingOlder,
   onLoadOlder,
 }: MessageListProps) {
-  // Subscribe here so ChatPage chrome is not forced to re-render on every delta.
+  // 在此订阅，避免 ChatPage 外壳因每个 delta 被迫 re-render。
   const messages = useChatStore((s) => s.messages);
   const [showScrollBtn, setShowScrollBtn] = useState(false);
   const stickToBottomRef = useRef(true);
@@ -50,13 +50,13 @@ export default function MessageList({
   const isPrependingRef = useRef(false);
 
   const lastMessage = messages[messages.length - 1];
-  /** Stick-to-bottom only when the tail message grows/changes — not on array identity. */
+  /** 仅当尾部消息增长/变化时贴底 —— 不因数组引用变化。 */
   const stickScrollKey = useMemo(() => {
     if (!lastMessage) return `empty:${loading ? 1 : 0}`;
     return `${lastMessage.id}:${lastMessage.content.length}:${lastMessage.status}`;
   }, [lastMessage, loading]);
 
-  // After switching conversation, jump to latest
+  // 切换对话后跳至最新消息
   useEffect(() => {
     stickToBottomRef.current = true;
     isPrependingRef.current = false;
@@ -67,10 +67,10 @@ export default function MessageList({
     requestAnimationFrame(() => {
       scrollToBottom(container);
     });
-    // eslint-disable-next-line react-hooks/exhaustive-deps -- only on conversation switch
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- 仅在切换对话时
   }, [conversationId, scrollContainerRef]);
 
-  // Snapshot height when older-page fetch starts; restore after prepend
+  // 拉取更早页开始时快照高度；prepend 后恢复
   useEffect(() => {
     const container = scrollContainerRef.current;
     if (loadingOlder && container) {

@@ -55,7 +55,7 @@ export async function fetchMe(): Promise<AuthMePayload> {
   }
 }
 
-/** Best-effort logout with one retry; server is idempotent. */
+/** 尽力退出登录，失败时重试一次；服务端幂等。 */
 export async function logout(): Promise<{ ok: true }> {
   const attempt = async (): Promise<{ ok: true }> => {
     try {
@@ -74,7 +74,7 @@ export async function logout(): Promise<{ ok: true }> {
   try {
     return await attempt();
   } catch {
-    // One retry for transient network / 5xx before caller clears local state.
+    // 在调用方清除本地状态前，对瞬时网络 / 5xx 再重试一次。
     return await attempt();
   }
 }

@@ -14,7 +14,7 @@ describe('LoginRateGuard', () => {
     guard.recordFailure('1.1.1.1', 'demo', now + 1);
     guard.recordFailure('1.1.1.1', 'demo', now + 2);
     expect(guard.isFailureBlocked('1.1.1.1', 'demo', now + 3)).toBe(true);
-    // Different IP still ok for same user until user bucket fills — user also recorded
+    // 同一用户在不同 IP 仍可用，直到用户桶也满——失败也会记入用户维度
     expect(guard.isFailureBlocked('2.2.2.2', 'demo', now + 3)).toBe(true);
   });
 

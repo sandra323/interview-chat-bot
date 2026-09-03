@@ -12,7 +12,7 @@ describe('ChatStore', () => {
       try {
         fs.rmSync(p, { force: true });
       } catch {
-        // ignore
+        // 忽略
       }
     }
     paths.length = 0;
@@ -79,9 +79,9 @@ describe('ChatStore', () => {
     const newer = store.createConversation();
     const longTitle = '新会话标题用来截断测试一二三四五六七八九十';
     store.appendMessage(newer, 'user', longTitle);
-    // Empty row should not appear in the sidebar list
+    // 空行不应出现在侧边栏列表中
     store.createConversation();
-    // Ensure newer sorts first even if earlier writes shared the same ms
+    // 确保较新的会话排在前面，即使较早写入共享同一毫秒时间戳
     await new Promise((r) => setTimeout(r, 5));
     store.touchConversation(newer);
 
@@ -119,7 +119,7 @@ describe('ChatStore', () => {
     const empty = store.createConversation();
     const kept = store.createConversation();
     store.appendMessage(kept, 'user', 'keep me');
-    // olderThanMs=0: any empty row is eligible
+    // olderThanMs=0：任意空行均可清理
     expect(store.pruneEmptyConversations(0)).toBe(1);
     expect(store.conversationExists(empty)).toBe(false);
     expect(store.conversationExists(kept)).toBe(true);

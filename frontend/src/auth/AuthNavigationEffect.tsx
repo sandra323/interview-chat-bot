@@ -3,7 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import { App } from 'antd';
 import { onForceLogoutLocal } from '@/store/useAuthStore';
 
-/** Navigate to /login when session is cleared (401 / logout / expiry / boot fail). */
+/** 会话清除时导航至 /login（401 / 退出 / 过期 / 启动失败）。 */
 export function AuthNavigationEffect() {
   const navigate = useNavigate();
   const { message } = App.useApp();

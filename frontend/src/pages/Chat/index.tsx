@@ -106,13 +106,13 @@ export default function ChatPage() {
     [syncGeneratingFromServer],
   );
 
-  // Stop / generating UI only for the *current* conversation
+  // 停止 / 生成 UI 仅针对*当前*对话
   const isGenerating = useMemo(
     () => ui.loading || hasPendingAssistant,
     [hasPendingAssistant, ui.loading],
   );
 
-  // Refresh sidebar only when a reply finishes (not on every mount)
+  // 仅在回复结束时刷新侧栏（非每次挂载）
   useEffect(() => {
     if (wasGeneratingRef.current && !isGenerating) {
       setHistoryRefreshKey((k) => k + 1);
@@ -120,9 +120,9 @@ export default function ChatPage() {
     wasGeneratingRef.current = isGenerating;
   }, [isGenerating]);
 
-  // Refresh when conversation changes (new session id / switch / clear).
-  // Wait until persist rehydrate finishes, then skip that first hydrated value
-  // so Sidebar's mount fetch remains the only initial /api/conversations call.
+  // 对话变更时刷新（新 session id / 切换 / 清空）。
+  // 等待 persist 恢复完成，再跳过首次 hydrated 值，
+  // 使 Sidebar 挂载时的 fetch 成为唯一初始 /api/conversations 调用。
   useEffect(() => {
     if (!hasHydrated) return;
     if (skipInitialConvRefreshRef.current) {

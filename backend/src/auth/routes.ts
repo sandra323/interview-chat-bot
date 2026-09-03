@@ -13,9 +13,8 @@ import { getAuthSessionStore } from './sessionStore.js';
 const RATE_LIMIT_MSG = '尝试过于频繁，请稍后再试';
 
 /**
- * Auth HTTP routes.
- * Logout without a valid Bearer is still SUCCESS (idempotent) — client may
- * clear local state even when the server session is already gone.
+ * 认证 HTTP 路由。
+ * 无有效 Bearer 时退出登录仍返回 SUCCESS（幂等）——客户端可在服务端会话已失效时仍清除本地状态。
  */
 export function createAuthRouter(env: ServerEnv): Router {
   const router = Router();
@@ -27,7 +26,7 @@ export function createAuthRouter(env: ServerEnv): Router {
       const usernameRaw =
         typeof req.body?.username === 'string' ? req.body.username : '';
 
-      // Cap POSTs per IP before bcrypt (CPU DoS).
+      // 在 bcrypt 之前按 IP 限制 POST 次数（防 CPU DoS）。
       if (!loginGuard.tryBeginRequest(ip)) {
         logger.warn('Auth login rate limited', { reason: 'request_cap' });
         sendFail(res, {
@@ -37,7 +36,7 @@ export function createAuthRouter(env: ServerEnv): Router {
         return;
       }
 
-      // Failure lockout — reject before bcrypt when already locked.
+      // 失败锁定——已锁定时在 bcrypt 之前直接拒绝。
       if (loginGuard.isFailureBlocked(ip, usernameRaw)) {
         logger.warn('Auth login rate limited', { reason: 'failure_lockout' });
         sendFail(res, {
@@ -81,7 +80,7 @@ export function createAuthRouter(env: ServerEnv): Router {
       loginGuard.clearFailures(ip, check.username);
 
       const store = getAuthSessionStore();
-      // Single active session per demo user: revoke peers after minting.
+      // 每个演示用户仅保留一个活跃会话：签发新会话后撤销其他会话。
       const session = store.createSession(
         check.username,
         env.authSessionTtlHours,
@@ -149,7 +148,7 @@ export function createAuthRouter(env: ServerEnv): Router {
           logger.info('Auth session revoked');
         }
       }
-      // Idempotent: missing/invalid token still succeeds.
+      // 幂等：缺少或无效 token 仍视为成功。
       sendSuccess(res, { ok: true });
     } catch (error) {
       logger.error('Auth logout error', {

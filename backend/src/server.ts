@@ -21,10 +21,10 @@ import { ApiCode } from '@ai-chat/shared';
 export function createApp(env: ServerEnv): express.Application {
   const app = express();
 
-  // Ensure auth_sessions schema exists on boot (same SQLite file as chat).
+  // 启动时确保 auth_sessions 表结构存在（与 chat 共用同一 SQLite 文件）。
   getAuthSessionStore();
 
-  // Correct client IP behind reverse proxies (login rate limiting).
+  // 反向代理后修正客户端 IP（用于登录限流）。
   if (env.nodeEnv === 'production') {
     app.set('trust proxy', 1);
   }
@@ -55,11 +55,11 @@ export function createApp(env: ServerEnv): express.Application {
 
   app.use('/api/auth', createAuthRouter(env));
 
-  // Conversation APIs require a valid Bearer session (not /health or /api/auth).
+  // 会话 API 需要有效的 Bearer 会话（/health 和 /api/auth 除外）。
   const conversations = express.Router();
   conversations.use(requireAuth);
 
-  // Sidebar history: list conversations (newest first)
+  // 侧边栏历史：列出会话（最新在前）
   conversations.get('/', (_req, res) => {
     try {
       const store = getChatStore();
@@ -76,7 +76,7 @@ export function createApp(env: ServerEnv): express.Application {
     }
   });
 
-  // Rename conversation (custom title; does not reorder list)
+  // 重命名会话（自定义标题；不改变列表顺序）
   conversations.patch('/:id', (req, res) => {
     try {
       const conversationId = req.params.id;
@@ -121,12 +121,12 @@ export function createApp(env: ServerEnv): express.Application {
     }
   });
 
-  // Delete conversation and all related messages / generations
+  // 删除会话及其所有相关消息 / 生成记录
   conversations.delete('/:id', (req, res) => {
     try {
       const conversationId = req.params.id;
       const store = getChatStore();
-      // Abort in-memory job before CASCADE removes generation rows
+      // CASCADE 删除 generation 行之前先中止内存中的任务
       getGenerationRunner()?.stopConversation(conversationId);
       if (!store.deleteConversation(conversationId)) {
         sendFail(res, {
@@ -147,7 +147,7 @@ export function createApp(env: ServerEnv): express.Application {
     }
   });
 
-  // Conversation messages with page / pageSize (page=1 = newest page)
+  // 会话消息分页（page / pageSize；page=1 为最新一页）
   conversations.get('/:id/messages', (req, res) => {
     try {
       const conversationId = req.params.id;
@@ -294,13 +294,13 @@ export function setupGracefulShutdown(
     try {
       getChatStore().close();
     } catch {
-      // ignore
+      // 忽略
     }
 
     try {
       getAuthSessionStore().close();
     } catch {
-      // ignore
+      // 忽略
     }
 
     server.close(() => {

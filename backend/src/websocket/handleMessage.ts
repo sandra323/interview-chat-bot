@@ -81,7 +81,7 @@ function handleAuth(
   sendMessage(connection.ws, { type: 'auth_ok' });
 }
 
-/** Ensure still authenticated and session not expired/revoked. */
+/** 确认仍处于已认证状态且会话未过期/未撤销。 */
 function ensureAuthenticated(
   connection: ConnectionState,
   manager: ConnectionManager,
@@ -156,7 +156,7 @@ function handleHello(
 ): void {
   const store = getChatStore();
 
-  // No conversationId → unbind for a blank new chat; do NOT create an empty row
+  // 无 conversationId → 解绑以开启空白新会话；不要创建空行
   if (!message.conversationId) {
     connection.conversationId = null;
     sendMessage(connection.ws, { type: 'session', conversationId: null });
@@ -238,7 +238,7 @@ function handleResume(
     });
   }
 
-  // Live deltas fan-out via conversationId binding; runner kept for API symmetry
+  // 实时增量通过 conversationId 绑定 fan-out；保留 runner 引用以保持 API 对称
   void runner;
 }
 
@@ -274,7 +274,7 @@ function handleStop(
 
   const stopped = runner.stop(message.generationId);
   if (!stopped) {
-    // Orphaned running row (e.g. after restart) — finalize locally
+    // 孤立的 running 行（如重启后）——在本地收尾
     store.finalizeGeneration(message.generationId, 'cancelled', {
       persistAssistant: true,
     });

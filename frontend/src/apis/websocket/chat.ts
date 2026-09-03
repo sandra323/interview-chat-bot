@@ -1,6 +1,6 @@
 import type { WebSocketClient } from './client';
 
-/** Chat payload — content + optional allowlisted model. Never includes API keys. */
+/** 聊天 payload —— 内容 + 可选白名单 model。绝不包含 API key。 */
 export function sendChatMessage(
   client: WebSocketClient,
   content: string,

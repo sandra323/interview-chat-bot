@@ -27,7 +27,7 @@ describe('AuthSessionStore', () => {
       try {
         store.close();
       } catch {
-        // ignore
+        // 忽略
       }
     }
     stores.length = 0;
@@ -37,7 +37,7 @@ describe('AuthSessionStore', () => {
         fs.rmSync(`${p}-wal`, { force: true });
         fs.rmSync(`${p}-shm`, { force: true });
       } catch {
-        // ignore
+        // 忽略
       }
     }
     paths.length = 0;
@@ -98,7 +98,7 @@ describe('AuthSessionStore', () => {
 
     expect(store.revokeByToken(created.token, now + 1)).toBe(true);
     expect(store.findValidByToken(created.token, now + 2)).toBeNull();
-    // idempotent revoke
+    // 幂等撤销
     expect(store.revokeByToken(created.token, now + 3)).toBe(false);
   });
 

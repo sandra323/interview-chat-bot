@@ -8,14 +8,14 @@ export type StatusHandler = (status: WebSocketStatus) => void;
 
 export interface WebSocketClientOptions {
   /**
-   * Return the current Bearer session token for post-`connected` `{ type: 'auth' }`.
-   * Required unless `skipAuth` is true.
+   * 返回当前 Bearer session token，用于 `connected` 后的 `{ type: 'auth' }`。
+   * 除非 `skipAuth` 为 true，否则必填。
    */
   getAuthToken?: () => string | null | undefined;
-  /** Called when auth fails (missing token, UNAUTHORIZED, etc.). */
+  /** 鉴权失败时回调（缺少 token、UNAUTHORIZED 等）。 */
   onAuthFailure?: (reason: 'missing_token' | 'unauthorized') => void;
   /**
-   * Skip WS auth handshake (UI-only / tests). Do not use against a protected backend.
+   * 跳过 WS 鉴权握手（仅 UI / 测试）。勿用于受保护 backend。
    */
   skipAuth?: boolean;
 }
@@ -30,7 +30,7 @@ export class WebSocketClient {
   private reconnectAttempts = 0;
   private maxReconnectAttempts = 5;
   private reconnectTimer: ReturnType<typeof setTimeout> | null = null;
-  /** False until skipAuth or server `auth_ok`. */
+  /** skipAuth 或收到服务端 `auth_ok` 前为 false。 */
   private authReady = false;
 
   constructor(url: string, options: WebSocketClientOptions = {}) {
@@ -68,7 +68,7 @@ export class WebSocketClient {
         this.authReady = true;
         this.setStatus('open');
       }
-      // Otherwise stay `connecting` until `auth_ok`.
+      // 否则保持 `connecting` 直至 `auth_ok`。
     };
 
     ws.onmessage = (event) => {
@@ -90,11 +90,11 @@ export class WebSocketClient {
     };
 
     ws.onerror = () => {
-      // onclose will handle reconnect
+      // onclose 将处理重连
     };
   }
 
-  /** Tear down without auto-reconnect; status becomes closed. */
+  /** 拆除连接且不自动重连；状态变为 closed。 */
   disconnect(): void {
     this.manualClose = true;
     this.clearReconnectTimer();
@@ -104,8 +104,8 @@ export class WebSocketClient {
   }
 
   /**
-   * User-initiated reconnect: skip flashing `closed` so the disconnect
-   * banner does not cause a layout jump. Goes straight to connecting.
+   * 用户主动重连：跳过闪烁 `closed`，避免断连
+   * banner 引发布局跳动。直接进入 connecting。
    */
   reconnect(): void {
     this.manualClose = true;
@@ -203,7 +203,7 @@ export class WebSocketClient {
       return;
     }
 
-    // Exponential backoff: ~1s, 2s, 4s, 8s, 16s + up to 30% random jitter
+    // 指数退避：约 1s、2s、4s、8s、16s + 最多 30% 随机 jitter
     const baseDelayMs = Math.pow(2, this.reconnectAttempts) * 1000;
     const jitterMs = Math.random() * baseDelayMs * 0.3;
     const delay = Math.round(baseDelayMs + jitterMs);

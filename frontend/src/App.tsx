@@ -13,9 +13,9 @@ const antdTheme = {
   token: {
     colorPrimary: '#3b82f6',
     colorBgBase: '#0a0c10',
-    // Inputs / containers keep original card depth
+    // 输入框 / 容器保持原有卡片层次
     colorBgContainer: '#111318',
-    // Dropdowns / popovers / menus use a slightly lighter elevated surface
+    // 下拉 / 弹出层 / 菜单使用稍浅的 elevated 表面
     colorBgElevated: '#1c2333',
     colorBorder: '#1e2330',
     colorText: '#e8eaed',

@@ -147,7 +147,7 @@ describe('OpenAICompatibleAdapter', () => {
         [{ role: 'user', content: 'Hi' }],
         config,
       )) {
-        // drain
+        // 消费完流
       }
     }).rejects.toMatchObject({
       code: 'LLM_API_ERROR',
@@ -173,7 +173,7 @@ describe('OpenAICompatibleAdapter', () => {
         [{ role: 'user', content: 'Hi' }],
         config,
       )) {
-        // drain
+        // 消费完流
       }
     }).rejects.toBeInstanceOf(LLMAdapterError);
   });
@@ -195,7 +195,7 @@ describe('OpenAICompatibleAdapter', () => {
         [{ role: 'user', content: 'Hi' }],
         config,
       )) {
-        // drain
+        // 消费完流
       }
     }).rejects.toMatchObject({
       code: 'REQUEST_TIMEOUT',

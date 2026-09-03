@@ -12,7 +12,7 @@ export type ResolveSessionResult =
   | { ok: false; msg: string };
 
 /**
- * Resolve a raw bearer token to a valid session, or a Chinese UNAUTHORIZED msg.
+ * 将原始 Bearer token 解析为有效会话，或返回中文 UNAUTHORIZED 消息。
  */
 export function resolveBearerSession(
   rawToken: string | null,

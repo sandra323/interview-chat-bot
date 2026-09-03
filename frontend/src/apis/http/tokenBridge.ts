@@ -1,6 +1,6 @@
 /**
- * Tiny bridge so HTTP client can read the access token / fire 401 cleanup
- * without importing the Zustand auth store (avoids circular deps).
+ * 轻量桥接：HTTP client 读取 access token / 触发 401 清理，
+ * 无需导入 Zustand auth store（避免循环依赖）。
  */
 
 type TokenGetter = () => string | null | undefined;
@@ -22,7 +22,7 @@ export function setUnauthorizedHandler(handler: UnauthorizedHandler | null): voi
   unauthorizedHandler = handler;
 }
 
-/** Notify only when an authenticated request was rejected (handler decides cleanup). */
+/** 仅在已认证请求被拒绝时通知（由 handler 决定清理逻辑）。 */
 export function notifyUnauthorized(): void {
   unauthorizedHandler?.();
 }

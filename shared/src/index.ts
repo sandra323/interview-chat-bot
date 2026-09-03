@@ -1,8 +1,17 @@
 export type { ChatRole, MessageStatus, Message, ChatMessage } from './types/message.js';
 export type { Config, LLMConfig } from './types/config.js';
+export {
+  SCENARIO_IDS,
+  DEFAULT_SCENARIO_ID,
+  SCENARIO_LABELS,
+  isScenarioId,
+  resolveScenario,
+  type ScenarioId,
+} from './types/scenario.js';
 export type {
   ErrorCode,
   ReplyEndReason,
+  ToolEventName,
   ClientMessage,
   ServerMessage,
   ConnectionStatus,

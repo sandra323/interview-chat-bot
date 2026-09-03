@@ -13,7 +13,7 @@ declare module 'express-serve-static-core' {
   }
 }
 
-/** Require a valid Bearer session; sets `req.auth` on success. */
+/** 要求有效的 Bearer 会话；成功时设置 `req.auth`。 */
 export function requireAuth(
   req: Request,
   res: Response,

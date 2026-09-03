@@ -65,7 +65,7 @@ describe('auth HTTP routes', () => {
         fs.rmSync(`${p}-wal`, { force: true });
         fs.rmSync(`${p}-shm`, { force: true });
       } catch {
-        // ignore
+        // 忽略
       }
     }
     paths.length = 0;
@@ -204,7 +204,7 @@ describe('auth HTTP routes', () => {
     expect(limited.body.code).toBe(ApiCode.RATE_LIMITED);
     expect(limited.body.msg).toBe('尝试过于频繁，请稍后再试');
 
-    // Even correct password is blocked while locked out.
+    // 锁定期间即使密码正确也会被拒绝。
     const blockedOk = await json('POST', '/api/auth/login', {
       body: { username: 'demo', password: 'demo' },
     });

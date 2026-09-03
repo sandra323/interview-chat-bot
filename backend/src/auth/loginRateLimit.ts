@@ -1,7 +1,7 @@
 /**
- * Sliding-window counters for login abuse protection.
- * - Request cap: limits POSTs per IP before bcrypt (CPU DoS).
- * - Failure caps: per-IP and per-username lockouts after bad passwords.
+ * 登录滥用的滑动窗口计数器。
+ * - 请求上限：在 bcrypt 之前按 IP 限制 POST（防 CPU DoS）。
+ * - 失败上限：错误密码后按 IP 和用户名锁定。
  */
 
 const DEFAULT_WINDOW_MS = 15 * 60 * 1000;
@@ -33,7 +33,7 @@ class SlidingWindowCounter {
     return this.count(key, now) >= this.max;
   }
 
-  /** Record an event; returns false if already at limit (does not add). */
+  /** 记录一次事件；已达上限时返回 false（不再追加）。 */
   tryAdd(key: string, now: number = Date.now()): boolean {
     const recent = this.prune(key, now);
     if (recent.length >= this.max) {
@@ -75,12 +75,12 @@ export class LoginRateGuard {
     );
   }
 
-  /** Absolute POST quota per IP (before bcrypt). */
+  /** 每个 IP 的绝对 POST 配额（bcrypt 之前）。 */
   tryBeginRequest(ip: string, now: number = Date.now()): boolean {
     return this.requests.tryAdd(`req:${ip || 'unknown'}`, now);
   }
 
-  /** True when IP or username already hit failure lockout. */
+  /** IP 或用户名已触发失败锁定时为 true。 */
   isFailureBlocked(
     ip: string,
     username: string,
@@ -108,7 +108,7 @@ export class LoginRateGuard {
     this.failures.clear(`user:${safeUser}`);
   }
 
-  /** Test helper. */
+  /** 测试辅助方法。 */
   reset(): void {
     this.requests.clearAll();
     this.failures.clearAll();

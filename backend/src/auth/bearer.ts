@@ -1,6 +1,6 @@
 import type { Request } from 'express';
 
-/** Parse `Authorization: Bearer <token>`. Returns null if missing/malformed. */
+/** 解析 `Authorization: Bearer <token>`。缺失或格式错误时返回 null。 */
 export function extractBearerToken(req: Request): string | null {
   const header = req.headers.authorization;
   if (typeof header !== 'string') {

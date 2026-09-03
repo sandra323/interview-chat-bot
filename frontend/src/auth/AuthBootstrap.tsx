@@ -9,11 +9,11 @@ import { useAuthStore } from '@/store/useAuthStore';
 import { shouldForceLogoutOnBootMeFailure } from './bootSession';
 
 /**
- * After persist hydrate: probe /api/auth/me when a token exists.
- * Leaves status as `unknown` until done so RequireAuth does not flash Chat.
+ * persist 恢复后：若存在 token 则探测 /api/auth/me。
+ * 完成前保持 `unknown`，避免 RequireAuth 闪烁 Chat。
  *
- * USE_MOCK: auth gate is skipped for UI-only demos (see RequireAuth). Documented
- * exception — do not combine with a real protected backend.
+ * USE_MOCK：纯 UI 演示跳过鉴权门禁（见 RequireAuth）。已文档化的
+ * 例外 —— 勿与真实受保护后端混用。
  */
 export function AuthBootstrap() {
   const { message } = App.useApp();
@@ -28,7 +28,7 @@ export function AuthBootstrap() {
     if (!hasHydrated) {
       return;
     }
-    // Already resolved (e.g. login just succeeded) — skip re-entry loops.
+    // 已解析（如刚登录成功）—— 跳过重复进入循环。
     if (status !== 'unknown') {
       return;
     }
@@ -37,7 +37,7 @@ export function AuthBootstrap() {
 
     async function boot() {
       if (USE_MOCK) {
-        // UI mock path: no server session probe.
+        // UI mock 路径：不探测服务端会话。
         if (!cancelled) {
           setStatus(token ? 'authenticated' : 'anonymous');
         }
@@ -51,7 +51,7 @@ export function AuthBootstrap() {
         return;
       }
 
-      // Avoid double toast/navigate: boot handles me-failure itself.
+      // 避免重复 toast/导航：boot 自行处理 me 失败。
       setUnauthorizedHandler(null);
       try {
         const me = await fetchMe();
@@ -80,7 +80,7 @@ export function AuthBootstrap() {
           return;
         }
 
-        // Transient failure: keep persisted session so the user is not kicked out.
+        // 瞬时失败：保留持久化会话，避免踢出用户。
         setStatus('authenticated');
         message.warning(
           userFacingApiMessage(err, '登录状态校验失败，请稍后重试'),

@@ -8,11 +8,11 @@ interface ChatInputProps {
   onSend: (text: string) => boolean;
   onStop?: () => void;
   disabled: boolean;
-  /** True while waiting for reply_start or streaming */
+  /** 等待 reply_start 或流式输出时为 true */
   isGenerating?: boolean;
 }
 
-/** Solid stop square — antd has no filled-square stop glyph */
+/** 实心停止方块 —— antd 无填充方形停止图标 */
 function StopSquareIcon() {
   return <span className={styles.stopIcon} aria-hidden />;
 }
@@ -36,7 +36,7 @@ export default function ChatInput({
   }, [onStop]);
 
   const handleKeyDown = (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
-    // IME composition (e.g. Chinese input confirming English) — Enter must not send
+    // IME 组合输入（如中文输入法确认英文）—— Enter 不得发送
     if (e.nativeEvent.isComposing || e.keyCode === 229) return;
 
     if (e.key === 'Enter' && !e.shiftKey) {

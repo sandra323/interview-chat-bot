@@ -3,7 +3,7 @@ import { Navigate } from 'react-router-dom';
 import { USE_MOCK } from '@/config/app';
 import { useAuthStore } from '@/store/useAuthStore';
 
-/** Public routes like `/login` — bounce authenticated users to chat. */
+/** 公开路由如 `/login` —— 已登录用户重定向至聊天页。 */
 export function GuestOnly({ children }: { children: ReactNode }) {
   const status = useAuthStore((s) => s.status);
 

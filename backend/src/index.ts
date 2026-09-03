@@ -30,6 +30,6 @@ server.listen(env.port, () => {
   logger.info(`Server listening on port ${env.port}`, {
     defaultModel: env.defaultModel,
     llmApiUrl: env.llmApiUrl,
-    // never log api key
+    // 切勿记录 API key
   });
 });

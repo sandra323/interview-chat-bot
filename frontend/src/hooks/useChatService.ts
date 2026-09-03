@@ -34,13 +34,13 @@ import { getWebSocketUrl, isValidMessage } from '@/utils/validators';
 const MOCK_CHUNK_SIZE = 4;
 const MOCK_CHUNK_INTERVAL_MS = 28;
 
-/** Cap buffered live deltas while waiting for reply_catchup. */
+/** 等待 reply_catchup 时，限制缓冲的实时 delta 数量。 */
 const CATCHUP_BUFFER_MAX_ITEMS = 100;
 const CATCHUP_BUFFER_MAX_CHARS = 50_000;
-/** Avoid resume storms when offsets disagree. */
+/** offset 不一致时避免 resume 风暴。 */
 const GAP_RESUME_COOLDOWN_MS = 1500;
 
-/** Live WS client for gap catch-up from message handlers (module-level). */
+/** 供消息 handler 做 gap 补全的实时 WS client（模块级）。 */
 let chatClientRef: WebSocketClient | null = null;
 
 type CatchupBufferEntry = {
@@ -50,12 +50,12 @@ type CatchupBufferEntry = {
 };
 
 /**
- * Generations waiting for reply_catchup after resume — buffer live deltas
- * so a late catchup does not race with drops.
+ * resume 后等待 reply_catchup 的 generation —— 缓冲实时 delta，
+ * 避免迟到的 catchup 与丢弃逻辑竞态。
  */
 const awaitingCatchup = new Map<string, CatchupBufferEntry>();
 
-/** Conversations resumed without generationId (e.g. switch) — buffer until catchup. */
+/** 无 generationId 的 resume 对话（如切换）—— 缓冲直至 catchup。 */
 const awaitingConversationCatchup = new Set<string>();
 
 const lastGapResumeAt = new Map<string, number>();
@@ -122,7 +122,7 @@ function requestGapCatchup(
 
   beginAwaitingCatchup(conversationId, generationId);
   if (cooling) {
-    // Already resumed recently (or still awaiting) — keep buffering only
+    // 刚 resume 过（或仍在等待）—— 仅继续缓冲
     return;
   }
 
@@ -135,8 +135,8 @@ function requestGapCatchup(
 }
 
 /**
- * Apply one or more aligned deltas to the store in a single write when possible.
- * Used by the rAF batcher and by catch-up flush (immediate).
+ * 尽可能单次写入将对齐的 delta 应用到 store。
+ * 供 rAF batcher 与 catch-up flush（立即）使用。
  */
 function applyAlignedReplyDeltaBatch(
   generationId: string,
@@ -205,7 +205,7 @@ function applyAlignedReplyDeltaBatch(
 
 setReplyDeltaFlushHandler(applyAlignedReplyDeltaBatch);
 
-/** Live path: queue for rAF coalesce. Catch-up waiters still buffer immediately. */
+/** 实时路径：排队 rAF 合并；等待 catch-up 者仍立即缓冲。 */
 function applyAlignedReplyDelta(
   conversationId: string,
   generationId: string,
@@ -231,7 +231,7 @@ function flushBufferedDeltas(generationId: string): void {
   const items = [...pending.buffer].sort((a, b) => a.offset - b.offset);
   awaitingCatchup.delete(generationId);
 
-  // Apply immediately (already behind catchup) — one batch write.
+  // 立即应用（已落后于 catchup）—— 单次批量写入。
   applyAlignedReplyDeltaBatch(
     generationId,
     items.map((item) => ({
@@ -241,7 +241,7 @@ function flushBufferedDeltas(generationId: string): void {
     })),
   );
 
-  // If a gap re-opened awaitingCatchup, remaining live path is buffered there.
+  // 若 gap 重新打开 awaitingCatchup，剩余实时路径将在该处缓冲。
 }
 
 function mapHistoryItem(item: ConversationMessageItem): Message | null {
@@ -262,8 +262,8 @@ function mapHistoryItems(items: ConversationMessageItem[]): Message[] {
 }
 
 /**
- * After persist rehydrate, restore pagination meta so scroll-up can still
- * fetch older server pages (history.page/hasMore are not persisted).
+ * persist 恢复后，还原分页元数据，以便上滑仍可
+ * 拉取更早的服务端页（history.page/hasMore 未持久化）。
  */
 async function syncHistoryPaginationMeta(): Promise<void> {
   const { conversationId, history, setHistory } = useChatStore.getState();
@@ -284,7 +284,7 @@ async function syncHistoryPaginationMeta(): Promise<void> {
       loadingMore: false,
     });
   } catch {
-    // Non-fatal — user can still chat; older pages may be unavailable until switch
+    // 非致命 —— 用户仍可聊天；更早页可能不可用，直至切换对话
   }
 }
 
@@ -335,7 +335,7 @@ function finalizePendingAssistant(content?: string): void {
 const DISCONNECT_SEND_ERROR = '哎呀，消息没发出去，请检查连接后再试';
 const OFFLINE_SEND_ERROR = '哎呀，当前网络不可用，请恢复网络后再试';
 
-/** Remove a locally-optimistic user bubble that never reached the server. */
+/** 移除未到达服务器的本地乐观用户气泡。 */
 function removeMessageById(id: string): void {
   const { messages, conversationTitle } = useChatStore.getState();
   const removed = messages.find((m) => m.id === id);
@@ -351,9 +351,9 @@ function removeMessageById(id: string): void {
 }
 
 /**
- * Abort "waiting for reply_start" (loading, no pending bubble).
- * Clears Stop UI + toast; keeps the user bubble (may already be on server).
- * Does not touch in-flight streaming bubbles so resume can continue.
+ * 中止「等待 reply_start」状态（loading，无 pending 气泡）。
+ * 清除停止 UI + toast；保留用户气泡（可能已在服务端）。
+ * 不触碰进行中的流式气泡，以便 resume 继续。
  */
 function abortWaitingForReply(errorMessage: string): boolean {
   const { ui, getPendingAssistant, conversationId, clearConversationGenerating } =
@@ -382,7 +382,7 @@ function resumePendingIfNeeded(client: WebSocketClient): void {
         offset: pending.content.length,
       });
     } else {
-      // May still have a background job — catch up if any
+      // 可能仍有后台任务 —— 如有则 catch up
       beginAwaitingConversationCatchup(conversationId);
       sendResume(client, { conversationId });
     }
@@ -390,7 +390,7 @@ function resumePendingIfNeeded(client: WebSocketClient): void {
   }
 
   if (pending) {
-    // No conversation to resume — fail the stuck bubble
+    // 无可 resume 的对话 —— 将卡住的气泡标为失败
     markPendingAssistantError();
     useChatStore.getState().setLoading(false);
   }
@@ -418,18 +418,18 @@ function handleServerMessage(raw: string): void {
 
   switch (message.type) {
     case 'connected':
-      // WS client sends `{ type: 'auth' }` next; stay connecting until auth_ok.
+      // WS client 接下来发送 `{ type: 'auth' }`；保持 connecting 直至 auth_ok。
       break;
     case 'auth_ok':
-      // WebSocketClient flips status to open → resumePendingIfNeeded runs.
+      // WebSocketClient 将状态切为 open → 运行 resumePendingIfNeeded。
       break;
     case 'session':
-      // null = server unbound for a blank new chat (client already cleared locally)
+      // null = 服务端未绑定空白新对话（客户端本地已清空）
       if (message.conversationId === null) {
         break;
       }
-      // Only bind when we don't already have a different active conversation
-      // (avoids clobbering a mid-switch view). Prefer explicit client sets.
+      // 仅当尚无不同的活跃对话时才绑定
+      // （避免覆盖切换中的视图）。优先显式 client 设置。
       if (
         !useChatStore.getState().conversationId ||
         useChatStore.getState().conversationId === message.conversationId
@@ -464,7 +464,7 @@ function handleServerMessage(raw: string): void {
       );
       break;
     case 'reply_catchup': {
-      // Apply any coalesced live deltas before merging the catchup snapshot.
+      // 合并 catchup 快照前，先应用已合并的实时 delta。
       flushReplyDeltaQueue(message.generationId);
       if (message.done) {
         clearConversationGenerating(message.conversationId);
@@ -508,13 +508,13 @@ function handleServerMessage(raw: string): void {
       break;
     }
     case 'reply_end':
-      // End payload is authoritative — drop unapplied coalesced deltas.
+      // 结束 payload 为权威 —— 丢弃未应用的合并 delta。
       discardReplyDeltaQueue(message.generationId);
       clearConversationGenerating(message.conversationId);
       clearAwaitingCatchup(message.generationId);
       awaitingConversationCatchup.delete(message.conversationId);
       if (!isActiveConversation(message.conversationId)) break;
-      // Full snapshot — authoritative correction after streaming
+      // 完整快照 —— 流式结束后的权威校正
       updateMessage(message.generationId, {
         content: message.content,
         status: 'sent',
@@ -665,13 +665,13 @@ function useMockChatService() {
   }, [setConnectionStatus, setError]);
 
   const disconnect = useCallback(() => {
-    // Mock has no live socket
+    // Mock 无实时 socket
   }, []);
 
   const clearConversation = useCallback(() => {
     const { conversationId, getPendingAssistant, markConversationGenerating } =
       useChatStore.getState();
-    // Leave background jobs running so user can switch back later
+    // 保留后台任务运行，以便用户稍后切回
     if (conversationId && getPendingAssistant()) {
       markConversationGenerating(conversationId);
     }
@@ -679,7 +679,7 @@ function useMockChatService() {
     useChatStore.getState().clearChat();
   }, []);
 
-  /** After server-side delete: stop local gen, clear loading, do not remount generating. */
+  /** 服务端删除后：停止本地生成、清除 loading，不重新挂载生成状态。 */
   const resetAfterConversationDeleted = useCallback(
     (deletedId: string) => {
       const store = useChatStore.getState();
@@ -703,7 +703,7 @@ function useMockChatService() {
       useChatStore.getState();
     if (nextId === conversationId || history.loading) return;
 
-    // Do not stop — keep job running; mark so sidebar shows 生成中
+    // 不停止 —— 保持任务运行；标记以便侧栏显示「生成中」
     if (conversationId && getPendingAssistant()) {
       markConversationGenerating(conversationId);
     }
@@ -807,7 +807,7 @@ function useRealChatService() {
               : '登录已失效，请重新登录',
           );
       },
-      // USE_MOCK uses a separate mock service — never hit this branch with a live backend.
+      // USE_MOCK 使用独立 mock 服务 —— 连接真实 backend 时不应进入此分支。
       skipAuth: false,
     });
     clientRef.current = client;
@@ -816,11 +816,11 @@ function useRealChatService() {
     client.onMessage(handleServerMessage);
     client.onStatusChange((status) => {
       setConnectionStatus(status);
-      // Do not kill pending on transient disconnect — resume after reopen + auth_ok
+      // 瞬时断线不终止 pending —— reopen + auth_ok 后 resume
       if (status === 'open') {
         resumePendingIfNeeded(client);
       } else if (status === 'closed') {
-        // Sent but never got reply_start — exit Stop UI (don't kill streaming pending)
+        // 已发送但未收到 reply_start —— 退出停止 UI（不终止流式 pending）
         abortWaitingForReply(DISCONNECT_SEND_ERROR);
       }
     });
@@ -867,13 +867,13 @@ function useRealChatService() {
     if (!client || !conversationId || !pending) {
       finalizePendingAssistant();
       if (conversationId) clearConversationGenerating(conversationId);
-      // Waiting for reply_start with no bubble — still exit Stop UI
+      // 等待 reply_start 且无气泡 —— 仍退出停止 UI
       setLoadingState(false);
       return false;
     }
     const sent = sendStop(client, conversationId, pending.id);
     clearConversationGenerating(conversationId);
-    // Optimistic local end; reply_end will align
+    // 本地乐观结束；reply_end 将对齐
     finalizePendingAssistant();
     return sent;
   }, []);
@@ -917,7 +917,7 @@ function useRealChatService() {
         return false;
       }
 
-      // Chrome Offline often leaves WS readyState OPEN; catch right after send
+      // Chrome 离线时常使 WS readyState 仍为 OPEN；发送后立即检测
       if (typeof navigator !== 'undefined' && navigator.onLine === false) {
         removeMessageById(userMessage.id);
         setLoading(false);
@@ -943,7 +943,7 @@ function useRealChatService() {
     const client = clientRef.current;
     const { conversationId, getPendingAssistant, markConversationGenerating } =
       useChatStore.getState();
-    // Keep background generation; only rebind WS to a fresh session
+    // 保留后台生成；仅将 WS 重新绑定到新会话
     if (conversationId && getPendingAssistant()) {
       markConversationGenerating(conversationId);
     }
@@ -954,7 +954,7 @@ function useRealChatService() {
     }
   }, []);
 
-  /** After server-side delete: stop job, clear loading/generating, rebind blank session. */
+  /** 服务端删除后：停止任务、清除 loading/生成状态，重新绑定空白会话。 */
   const resetAfterConversationDeleted = useCallback(
     (deletedId: string) => {
       const store = useChatStore.getState();
@@ -988,7 +988,7 @@ function useRealChatService() {
 
     const client = clientRef.current;
 
-    // Do not stop — leave job running for when the user returns
+    // 不停止 —— 保留任务运行，待用户返回
     if (conversationId && getPendingAssistant()) {
       markConversationGenerating(conversationId);
     }
@@ -1018,7 +1018,7 @@ function useRealChatService() {
       useChatStore.getState().setLoading(false);
 
       if (client && client.getStatus() === 'open') {
-        // Bind + catch up any in-flight / finished generation on the target
+        // 绑定并 catch up 目标对话上进行中/已完成的 generation
         beginAwaitingConversationCatchup(nextId);
         sendResume(client, { conversationId: nextId });
       }
@@ -1084,7 +1084,7 @@ function useRealChatService() {
   };
 }
 
-/** USE_MOCK is a build-time constant — only one branch is used per session. */
+/** USE_MOCK 为构建时常量 —— 每个会话仅使用一个分支。 */
 export function useChatService() {
   if (USE_MOCK) {
     return useMockChatService();

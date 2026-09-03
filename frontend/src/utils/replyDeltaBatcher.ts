@@ -1,6 +1,6 @@
 /**
- * Coalesce live reply_delta store writes to one update per animation frame.
- * Catch-up / end paths should flush or discard before applying authoritative content.
+ * 将实时 reply_delta 的 store 写入合并为每帧一次更新。
+ * catch-up / 结束路径应在应用权威内容前先 flush 或 discard。
  */
 
 export type QueuedReplyDelta = {
@@ -52,7 +52,7 @@ function scheduleFlush(): void {
   });
 }
 
-/** Queue a live delta; store update happens on the next animation frame. */
+/** 排队实时 delta；store 更新在下一 animation frame 执行。 */
 export function enqueueReplyDelta(
   conversationId: string,
   generationId: string,
@@ -69,8 +69,8 @@ export function enqueueReplyDelta(
 }
 
 /**
- * Synchronously apply queued deltas (cancel pending rAF for those ids).
- * @param generationId when omitted, flush every generation
+ * 同步应用已排队的 delta（取消这些 id 的 pending rAF）。
+ * @param generationId 省略时 flush 所有 generation
  */
 export function flushReplyDeltaQueue(generationId?: string): void {
   if (rafId != null) {
@@ -82,7 +82,7 @@ export function flushReplyDeltaQueue(generationId?: string): void {
     const items = queues.get(generationId);
     queues.delete(generationId);
     if (items?.length) runFlush(generationId, items);
-    // Re-schedule if other generations remain
+    // 若仍有其他 generation，重新调度
     if (queues.size > 0) scheduleFlush();
     return;
   }
@@ -94,7 +94,7 @@ export function flushReplyDeltaQueue(generationId?: string): void {
   }
 }
 
-/** Drop queued deltas without applying (e.g. reply_end is authoritative). */
+/** 丢弃已排队 delta 而不应用（如 reply_end 为权威）。 */
 export function discardReplyDeltaQueue(generationId?: string): void {
   if (generationId) {
     queues.delete(generationId);
@@ -111,7 +111,7 @@ export function discardReplyDeltaQueue(generationId?: string): void {
   }
 }
 
-/** Test helper */
+/** 测试辅助 */
 export function resetReplyDeltaBatcherForTests(): void {
   discardReplyDeltaQueue();
   flushHandler = null;

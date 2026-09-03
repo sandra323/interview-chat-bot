@@ -1,6 +1,6 @@
 /**
- * LLM model registry for UI labels only.
- * API credentials live exclusively on the backend (DEEPSEEK_API_KEY).
+ * 供 UI 标签使用的 LLM model 注册表。
+ * API 凭证仅存在于 backend（DEEPSEEK_API_KEY）。
  */
 
 import { getModelTimeoutMs } from '@ai-chat/shared';

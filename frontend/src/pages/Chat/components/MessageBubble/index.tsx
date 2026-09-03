@@ -8,7 +8,7 @@ import styles from './index.module.less';
 
 interface MessageBubbleProps {
   message: Message;
-  /** Resolved label from parent — avoids every bubble subscribing to the store. */
+  /** 由父组件解析的标签 —— 避免每个气泡都订阅 store。 */
   modelLabel: string;
 }
 
@@ -89,5 +89,5 @@ function MessageBubble({ message, modelLabel }: MessageBubbleProps) {
   );
 }
 
-/** Same message object reference → skip re-render while a sibling streams. */
+/** 同一 message 对象引用 → 兄弟流式输出时跳过 re-render。 */
 export default memo(MessageBubble);

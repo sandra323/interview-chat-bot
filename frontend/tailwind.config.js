@@ -3,7 +3,7 @@ export default {
   content: [
     './index.html',
     './src/**/*.{js,ts,jsx,tsx,less}',
-    // Streamdown ships Tailwind utility classes in its dist bundle (hoisted in monorepo)
+    // Streamdown 在其 dist 包中提供 Tailwind 工具类（monorepo 中已 hoist）
     '../node_modules/streamdown/dist/*.js',
   ],
   theme: {

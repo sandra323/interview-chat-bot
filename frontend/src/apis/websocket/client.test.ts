@@ -46,7 +46,7 @@ describe('WebSocketClient auth handshake', () => {
   });
 
   function installFake() {
-    // @ts-expect-error test stub
+    // @ts-expect-error 测试桩
     globalThis.WebSocket = FakeWebSocket;
   }
 

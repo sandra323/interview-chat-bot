@@ -1,4 +1,4 @@
-/** UUID for both HTTPS and plain http://public-ip (where randomUUID is missing). */
+/** 适用于 HTTPS 与纯 http://公网 IP（缺少 randomUUID 时）的 UUID。 */
 export function newId(): string {
   const c = globalThis.crypto;
   if (c && typeof c.randomUUID === 'function') {

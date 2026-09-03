@@ -22,7 +22,7 @@ interface OpenAIStreamChunk {
   choices?: Array<{
     delta?: {
       content?: string | null;
-      /** Present when thinking mode is enabled; ignored for user-facing reply text. */
+      /** 启用 thinking 模式时存在；用户可见回复文本中忽略。 */
       reasoning_content?: string | null;
     };
   }>;
@@ -47,7 +47,7 @@ function mapFetchError(error: unknown): never {
 }
 
 /**
- * OpenAI-compatible Chat Completions adapter (DeepSeek, OpenAI, etc.).
+ * OpenAI 兼容的 Chat Completions 适配器（DeepSeek、OpenAI 等）。
  */
 export class OpenAICompatibleAdapter implements LLMAdapter {
   async chat(
@@ -70,7 +70,7 @@ export class OpenAICompatibleAdapter implements LLMAdapter {
           model: config.model,
           messages,
           ...(options?.extraBody ?? {}),
-          // Enforce non-streaming; chat() cannot consume SSE responses.
+          // 强制非流式；chat() 无法消费 SSE 响应。
           stream: false,
         }),
         signal: controller.signal,
@@ -78,7 +78,7 @@ export class OpenAICompatibleAdapter implements LLMAdapter {
 
       if (!response.ok) {
         const errorText = await response.text().catch(() => 'Unknown error');
-        // Keep provider details in logs only; user-facing copy stays friendly.
+        // 厂商细节仅写日志；面向用户的文案保持友好。
         logger.error('LLM API error', {
           status: response.status,
           body: errorText.slice(0, 200),
@@ -172,7 +172,7 @@ export class OpenAICompatibleAdapter implements LLMAdapter {
         const { done, value } = await reader.read();
         if (done) break;
 
-        // Reset idle timeout while tokens keep arriving
+        // token 持续到达时重置空闲超时
         clearTimeout(timeoutId);
         timeoutId = setTimeout(() => controller.abort(), timeoutMs);
 

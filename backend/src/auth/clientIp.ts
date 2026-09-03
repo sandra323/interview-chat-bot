@@ -1,6 +1,6 @@
 import type { Request } from 'express';
 
-/** Best-effort client IP (use Express `trust proxy` behind a reverse proxy). */
+/** 尽力获取客户端 IP（反向代理后需启用 Express `trust proxy`）。 */
 export function getClientIp(req: Request): string {
   const fromExpress = typeof req.ip === 'string' ? req.ip.trim() : '';
   if (fromExpress) {

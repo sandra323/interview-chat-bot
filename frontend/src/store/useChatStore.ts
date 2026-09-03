@@ -18,21 +18,21 @@ interface HistoryState {
 
 interface ChatState {
   messages: Message[];
-  /** Server-side conversation; persisted for resume across refresh */
+  /** 服务端对话；持久化以便刷新后 resume */
   conversationId: string | null;
   /**
-   * Sidebar-aligned title (first user message). Persisted so Header stays
-   * correct even when only the newest message page is loaded.
+   * 与侧栏对齐的标题（首条用户消息）。持久化以便
+   * 仅加载最新消息页时 Header 仍正确。
    */
   conversationTitle: string | null;
-  /** Allowlisted model preference only — never stores API keys */
+  /** 仅白名单 model 偏好 —— 绝不存储 API key */
   model: string;
   ui: UIState;
-  /** Ephemeral pagination meta for history (not persisted) */
+  /** 历史分页元数据（不持久化） */
   history: HistoryState;
   /**
-   * Conversation ids with in-flight generation (local optimistic + switch-away).
-   * Not persisted — sidebar also trusts server `generating` on refresh.
+   * 进行中的 generation 对话 id（本地乐观 + 切走保留）。
+   * 不持久化 —— 刷新后侧栏亦信任服务端 `generating`。
    */
   generatingConversationIds: string[];
   _hasHydrated: boolean;
@@ -63,7 +63,7 @@ const INITIAL_HISTORY: HistoryState = {
   loadingMore: false,
 };
 
-/** Drop older persist blobs that may have contained plaintext apiKey */
+/** 清除可能含明文 apiKey 的旧 persist 数据 */
 function scrubLegacyPersistedSecrets(): void {
   try {
     for (const key of [
@@ -77,7 +77,7 @@ function scrubLegacyPersistedSecrets(): void {
       sessionStorage.removeItem(key);
     }
   } catch {
-    // ignore
+    // 忽略
   }
 }
 
@@ -170,7 +170,7 @@ export const useChatStore = create<ChatState>()(
           ),
         })),
 
-      /** Merge server truth: keep local-only ids that server still reports, drop finished */
+      /** 合并服务端真相：保留服务端仍报告的本地 id，丢弃已结束项 */
       syncGeneratingFromServer: (serverGeneratingIds) =>
         set(() => ({
           generatingConversationIds: [...new Set(serverGeneratingIds)],

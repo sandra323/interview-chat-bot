@@ -1,6 +1,6 @@
 /**
- * Server-enforced model allowlist.
- * Clients may suggest a model id; unknown ids are rejected or fall back to default.
+ * 服务端强制执行的模型白名单。
+ * 客户端可建议 model id；未知 id 会被拒绝或回退到默认值。
  */
 
 export const ALLOWED_MODEL_IDS = [

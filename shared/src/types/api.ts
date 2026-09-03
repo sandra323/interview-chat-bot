@@ -1,19 +1,19 @@
 /**
- * Unified HTTP API envelope for frontend-facing routes under `/api/*`.
+ * 面向 `/api/*` 前端路由的统一 HTTP API 响应封装。
  *
- * Success:  { code: 0, msg: "success", data: { ... } }
- * Failure:  { code: <non-zero>, msg: "<user-facing hint>", data: null }
+ * 成功：{ code: 0, msg: "success", data: { ... } }
+ * 失败：{ code: <非零>, msg: "<面向用户的提示>", data: null }
  *
- * Probe routes like `/health` stay outside this shape so load balancers
- * can keep checking a simple status payload.
+ * `/health` 等探测路由不采用此结构，以便负载均衡器
+ * 仍可检查简单的状态负载。
  */
 
-/** Business / protocol codes (not always identical to HTTP status). */
+/** 业务 / 协议错误码（不一定与 HTTP 状态码一一对应）。 */
 export const ApiCode = {
   SUCCESS: 0,
   BAD_REQUEST: 40000,
   UNAUTHORIZED: 40100,
-  /** Too many requests (e.g. login brute-force / DoS guard). */
+  /** 请求过多（例如登录暴力破解 / DoS 防护）。 */
   RATE_LIMITED: 42900,
   NOT_FOUND: 40400,
   INTERNAL_ERROR: 50000,

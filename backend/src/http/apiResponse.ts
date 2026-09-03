@@ -1,7 +1,7 @@
 import type { Response } from 'express';
 import { ApiCode, type ApiResponse } from '@ai-chat/shared';
 
-/** Successful `/api/*` response. HTTP 200 + code 0. */
+/** 成功的 `/api/*` 响应。HTTP 200 + code 0。 */
 export function sendSuccess<T>(
   res: Response,
   data: T,
@@ -15,13 +15,13 @@ export function sendSuccess<T>(
   res.status(200).json(body);
 }
 
-/** Failed `/api/*` response. Non-zero code + user-facing msg; data is null. */
+/** 失败的 `/api/*` 响应。非零 code + 面向用户的 msg；data 为 null。 */
 export function sendFail(
   res: Response,
   options: {
     code?: number;
     msg: string;
-    /** HTTP status; defaults from common code mapping */
+    /** HTTP 状态码；默认按常见 code 映射 */
     httpStatus?: number;
   },
 ): void {

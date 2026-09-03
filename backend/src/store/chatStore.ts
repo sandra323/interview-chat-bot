@@ -22,16 +22,16 @@ export interface GenerationRecord {
   updatedAt: number;
 }
 
-/** Sidebar / history list item */
+/** 侧边栏 / 历史列表项 */
 export interface ConversationListItem {
   id: string;
   title: string;
   updatedAt: number;
-  /** True when a generation job is still running for this conversation */
+  /** 该会话仍有生成任务在运行时为 true */
   generating: boolean;
 }
 
-/** Persisted message row for client history APIs */
+/** 持久化消息行，供客户端历史 API 使用 */
 export interface StoredMessage {
   id: string;
   role: 'user' | 'assistant' | 'system';
@@ -94,7 +94,7 @@ export class ChatStore {
         ON generations(conversation_id, updated_at);
     `);
 
-    // Existing DBs created before title column
+    // title 列加入之前创建的已有数据库
     const cols = this.db
       .prepare(`PRAGMA table_info(conversations)`)
       .all() as Array<{ name: string }>;
@@ -139,9 +139,9 @@ export class ChatStore {
   }
 
   /**
-   * List conversations for the sidebar, newest first.
-   * Title = custom title if set, else first user message; empty chats omitted.
-   * Display truncation belongs on the frontend.
+   * 列出侧边栏会话，最新在前。
+   * 标题 = 自定义标题（若有），否则首条用户消息；空会话不展示。
+   * 展示截断由前端负责。
    */
   listConversations(limit = 50): ConversationListItem[] {
     this.pruneEmptyConversations();
@@ -196,8 +196,8 @@ export class ChatStore {
   }
 
   /**
-   * Set a custom sidebar title. Does not bump updated_at (keeps list order).
-   * Returns false if the conversation does not exist.
+   * 设置自定义侧边栏标题。不更新 updated_at（保持列表顺序）。
+   * 会话不存在时返回 false。
    */
   renameConversation(conversationId: string, title: string): boolean {
     if (!this.conversationExists(conversationId)) return false;
@@ -210,8 +210,8 @@ export class ChatStore {
   }
 
   /**
-   * Drop orphan conversations with no messages (and no running job).
-   * Only removes rows older than 60s to avoid racing the first chat write.
+   * 删除无消息的孤儿会话（且无运行中任务）。
+   * 仅删除早于 60 秒的行，避免与首次写入竞态。
    */
   pruneEmptyConversations(olderThanMs = 60_000): number {
     const cutoff = Date.now() - olderThanMs;
@@ -261,9 +261,9 @@ export class ChatStore {
   }
 
   /**
-   * Paginated messages for the client UI.
-   * page=1 is the newest page; higher pages are older.
-   * Items in each page are returned oldest→newest for rendering.
+   * 客户端 UI 的分页消息。
+   * page=1 为最新一页；更大页码为更早内容。
+   * 每页内条目按时间从旧到新返回，便于渲染。
    */
   listMessagesPage(
     conversationId: string,
@@ -301,7 +301,7 @@ export class ChatStore {
       created_at: number;
     }>;
 
-    // Newest-first query → reverse so UI can append chronologically within the page
+    // 最新优先查询 → 反转后 UI 可在页内按时间顺序追加
     const items: StoredMessage[] = rows
       .slice()
       .reverse()
@@ -392,7 +392,7 @@ export class ChatStore {
     };
   }
 
-  /** Append delta; returns offset before append and new full buffer. */
+  /** 追加增量；返回追加前的 offset 与新的完整缓冲区。 */
   appendGenerationContent(
     generationId: string,
     delta: string,
@@ -446,7 +446,7 @@ export class ChatStore {
     return this.getGeneration(generationId);
   }
 
-  /** Returns true when a row was deleted. */
+  /** 删除成功时返回 true。 */
   deleteConversation(conversationId: string): boolean {
     const result = this.db
       .prepare(`DELETE FROM conversations WHERE id = ?`)
@@ -454,7 +454,7 @@ export class ChatStore {
     return result.changes > 0;
   }
 
-  /** After process restart, in-memory jobs are gone — fail open running rows. */
+  /** 进程重启后内存任务已消失——将仍为 running 的行标记为 error。 */
   failOrphanedRunningGenerations(): number {
     const result = this.db
       .prepare(

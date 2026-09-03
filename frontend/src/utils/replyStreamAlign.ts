@@ -1,6 +1,6 @@
 /**
- * Align streaming reply chunks using server `offset` (buffer length *before* delta).
- * Returns apply / ignore / gap — never mutates inputs.
+ * 使用服务端 `offset`（delta 之前的 buffer 长度）对齐流式 reply 分块。
+ * 返回 apply / ignore / gap —— 不修改输入。
  */
 export type AlignDeltaResult =
   | { action: 'apply'; content: string }
@@ -30,11 +30,11 @@ export function alignReplyDelta(
     return { action: 'apply', content: currentContent + suffix };
   }
 
-  // safeOffset === len
+  // safeOffset 已等于 len
   return { action: 'apply', content: currentContent + delta };
 }
 
-/** Rebuild from catchup snapshot: keep prefix before offset, then server tail. */
+/** 从 catchup 快照重建：保留 offset 前前缀，再接服务端尾部。 */
 export function mergeCatchupContent(
   currentContent: string,
   catchupContent: string,

@@ -60,7 +60,7 @@ describe('conversation HTTP requireAuth', () => {
         fs.rmSync(`${p}-wal`, { force: true });
         fs.rmSync(`${p}-shm`, { force: true });
       } catch {
-        // ignore
+        // 忽略
       }
     }
     paths.length = 0;

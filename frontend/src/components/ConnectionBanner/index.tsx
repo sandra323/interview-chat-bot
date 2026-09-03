@@ -10,8 +10,8 @@ const CONNECTING_KEY = 'ws-connecting';
 const CLOSED_KEY = 'ws-closed';
 
 /**
- * Overlay connection toasts via antd Message — no layout shift.
- * Renders nothing into the document flow.
+ * 通过 antd Message 叠加连接 toast —— 无布局位移。
+ * 不向文档流渲染任何内容。
  */
 export default function ConnectionBanner({ status }: ConnectionBannerProps) {
   const { message } = App.useApp();
@@ -38,7 +38,7 @@ export default function ConnectionBanner({ status }: ConnectionBannerProps) {
       return;
     }
 
-    // closed — skip initial mount (store starts closed before first connect)
+    // closed —— 跳过首次挂载（store 在首次连接前初始为 closed）
     if (prev === 'open' || prev === 'connecting') {
       message.destroy(CONNECTING_KEY);
       message.open({

@@ -2,9 +2,9 @@ import { ApiCode } from '@ai-chat/shared';
 import { ApiError } from '@/apis/http/client';
 
 /**
- * Decide whether boot `/me` failure should wipe local session.
- * Only clear on real auth rejection or known client-side expiry —
- * transient network / 5xx keep the token so a refresh can recover.
+ * 判断启动时 `/me` 失败是否应清除本地会话。
+ * 仅在真实鉴权拒绝或已知客户端过期时清除 ——
+ * 瞬时网络 / 5xx 保留 token，以便刷新后恢复。
  */
 export function shouldForceLogoutOnBootMeFailure(
   err: unknown,

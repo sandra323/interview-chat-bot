@@ -2,14 +2,14 @@ import type { WebSocket } from 'ws';
 
 export interface ConnectionState {
   connectionId: string;
-  /** Bound conversation for resume/fan-out; set via hello/chat */
+  /** 绑定的会话，用于 resume/fan-out；通过 hello/chat 设置 */
   conversationId: string | null;
   ws: WebSocket;
-  /** False until client sends a valid `{ type: 'auth', token }` */
+  /** 客户端发送有效的 `{ type: 'auth', token }` 之前为 false */
   authenticated: boolean;
-  /** auth_sessions.id after successful WS auth */
+  /** WebSocket 认证成功后的 auth_sessions.id */
   sessionId: string | null;
-  /** Timer that closes the socket if auth never arrives */
+  /** 若认证始终未到达则关闭 socket 的定时器 */
   authDeadlineTimer: ReturnType<typeof setTimeout> | null;
 }
 
@@ -32,7 +32,7 @@ export class ConnectionManager {
     return state;
   }
 
-  /** Start (or restart) the unauthenticated auth deadline. */
+  /** 启动（或重启）未认证连接的认证截止时间。 */
   armAuthDeadline(
     connection: ConnectionState,
     onTimeout: () => void,

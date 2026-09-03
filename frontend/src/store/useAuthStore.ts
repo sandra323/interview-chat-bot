@@ -23,8 +23,8 @@ interface AuthState {
   setSession: (session: AuthSession) => void;
   clearAuth: () => void;
   /**
-   * Clear auth persist + wipe local chat UI state (not server history).
-   * Used by logout / 401 / expiry. Optional navigate via registered callback.
+   * 清除 auth persist 并清空本地聊天 UI 状态（非服务端历史）。
+   * 用于退出 / 401 / 过期。可选通过注册回调导航。
    */
   forceLogoutLocal: (options?: { reason?: string }) => void;
   setStatus: (status: AuthStatus) => void;
@@ -35,7 +35,7 @@ type ForceLogoutListener = (info: { reason?: string }) => void;
 
 const forceLogoutListeners = new Set<ForceLogoutListener>();
 
-/** Register UI side-effects (e.g. navigate to /login) without importing router here. */
+/** 注册 UI 副作用（如导航至 /login），无需在此导入 router。 */
 export function onForceLogoutLocal(listener: ForceLogoutListener): () => void {
   forceLogoutListeners.add(listener);
   return () => {
@@ -80,7 +80,7 @@ export const useAuthStore = create<AuthState>()(
           try {
             listener({ reason: options?.reason });
           } catch {
-            // ignore listener errors
+            // 忽略 listener 错误
           }
         }
       },
@@ -97,14 +97,14 @@ export const useAuthStore = create<AuthState>()(
         expiresAt: state.expiresAt,
       }),
       onRehydrateStorage: () => (state) => {
-        // Keep status `unknown` until AuthBootstrap finishes /api/auth/me.
+        // 保持 status 为 `unknown`，直至 AuthBootstrap 完成 /api/auth/me。
         state?.setHasHydrated(true);
       },
     },
   ),
 );
 
-// Wire HTTP client without circular imports through the bridge.
+// 通过 bridge 连接 HTTP client，避免循环导入。
 setAccessTokenGetter(() => useAuthStore.getState().token);
 setUnauthorizedHandler(() => {
   useAuthStore.getState().forceLogoutLocal({ reason: 'unauthorized' });

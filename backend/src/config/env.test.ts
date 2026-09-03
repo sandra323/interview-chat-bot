@@ -5,7 +5,7 @@ import {
   type ServerEnv,
 } from './env.js';
 
-/** Well-formed bcrypt hash (cost 10); not a real deployed secret. */
+/** 格式正确的 bcrypt 哈希（cost 10）；非真实部署密钥。 */
 const SAMPLE_HASH =
   '$2a$10$N9qo8uLOickgx2ZMRZoMyeIjZAgcfl7p92ldGxad68LJZdL17lhWy';
 

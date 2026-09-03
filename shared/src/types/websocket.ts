@@ -1,3 +1,5 @@
+import type { ScenarioId } from './scenario.js';
+
 export type ErrorCode =
   | 'INVALID_CONFIG'
   | 'LLM_API_ERROR'
@@ -10,12 +12,14 @@ export type ErrorCode =
   | 'NOT_FOUND'
   | 'UNAUTHORIZED';
 
+export type ToolEventName = 'start' | 'end' | 'error';
+
 export type ReplyEndReason = 'completed' | 'cancelled';
 
 /**
- * Client → server. No API keys — credentials live only on the server.
- * `model` is an optional allowlisted preference (non-secret).
- * Auth: after `connected`, client must send `{ type: 'auth', token }` before chat.
+ * 客户端 → 服务端。不含 API Key — 凭据仅存在于服务端。
+ * `model` 为可选的白名单偏好（非机密）。
+ * 认证：在 `connected` 之后，客户端须在发起聊天前发送 `{ type: 'auth', token }`。
  */
 export type ClientMessage =
   | { type: 'auth'; token: string }
@@ -30,18 +34,23 @@ export type ClientMessage =
       type: 'resume';
       conversationId: string;
       generationId?: string;
-      /** Characters already held by the client for this generation */
+      /** 客户端已持有的本 generation 字符数 */
       offset?: number;
     }
   | { type: 'stop'; conversationId: string; generationId: string }
+  | {
+      type: 'set_scenario';
+      conversationId?: string;
+      scenario: ScenarioId;
+    }
   | { type: 'ping' };
 
 export type ServerMessage =
   | { type: 'connected'; connectionId: string }
-  /** Session accepted after client `auth` message */
+  /** 客户端 `auth` 消息通过后的会话确认 */
   | { type: 'auth_ok' }
-  /** Bound conversation, or null when the client reset to a blank new chat */
-  | { type: 'session'; conversationId: string | null }
+  /** 绑定的对话；客户端重置为空白新聊天时为 null */
+  | { type: 'session'; conversationId: string | null; scenario: ScenarioId }
   | {
       type: 'reply';
       content: string;
@@ -53,7 +62,7 @@ export type ServerMessage =
       type: 'reply_start';
       conversationId: string;
       generationId: string;
-      /** Same as generationId — kept for existing clients */
+      /** 与 generationId 相同 — 为兼容现有客户端而保留 */
       messageId: string;
     }
   | {
@@ -62,7 +71,7 @@ export type ServerMessage =
       generationId: string;
       messageId: string;
       delta: string;
-      /** Buffer length before this delta was appended */
+      /** 追加本 delta 前的缓冲区长度 */
       offset: number;
     }
   | {
@@ -88,6 +97,15 @@ export type ServerMessage =
       generationId: string;
       code: ErrorCode;
       message: string;
+    }
+  /** 工具执行进度：前端据此渲染"正在检索知识库…"等状态行 */
+  | {
+      type: 'tool_event';
+      conversationId: string;
+      generationId: string;
+      messageId: string;
+      event: ToolEventName;
+      name: string;
     }
   | { type: 'error'; code: ErrorCode; message: string };
 

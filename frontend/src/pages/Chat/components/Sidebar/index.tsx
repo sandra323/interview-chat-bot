@@ -21,23 +21,23 @@ import styles from './index.module.less';
 
 interface SidebarProps {
   open: boolean;
-  /** Bump to refetch history (e.g. after send / new chat) */
+  /** 递增以重新拉取历史（如发送后 / 新建对话） */
   refreshKey?: number;
   activeConversationId: string | null;
-  /** Local optimistic generating ids (in addition to server flag) */
+  /** 本地乐观 generating id（补充服务端 flag） */
   generatingConversationIds: string[];
   modelLabel: string;
-  /** Disable when current chat is already empty */
+  /** 当前聊天已为空时禁用 */
   newChatDisabled?: boolean;
   onNewChat: () => void;
   onSelectConversation: (conversationId: string, title: string) => void;
-  /** Sync local generating markers from server list */
+  /** 从服务端列表同步本地 generating 标记 */
   onGeneratingSync?: (serverGeneratingIds: string[]) => void;
-  /** Active chat was deleted — parent should clear local session */
+  /** 当前聊天被删除 —— 父组件应清除本地会话 */
   onConversationDeleted?: (conversationId: string) => void;
-  /** Active chat was renamed — parent should update header title */
+  /** 当前聊天被重命名 —— 父组件应更新 Header 标题 */
   onConversationRenamed?: (conversationId: string, title: string) => void;
-  /** Disconnect live WS before clearing auth (no-op in mock) */
+  /** 清除 auth 前断开实时 WS（mock 下为 no-op） */
   onDisconnect?: () => void;
 }
 
@@ -68,7 +68,7 @@ export default function Sidebar({
   onConversationRenamed,
   onDisconnect,
 }: SidebarProps) {
-  // App.useApp() modal inherits ConfigProvider dark theme (static Modal.confirm does not)
+  // App.useApp() modal 继承 ConfigProvider 暗色主题（静态 Modal.confirm 不会）
   const { modal } = App.useApp();
   const username = useAuthStore((s) => s.username) || '用户';
   const forceLogoutLocal = useAuthStore((s) => s.forceLogoutLocal);
@@ -101,7 +101,7 @@ export default function Sidebar({
     };
   }, []);
 
-  // Stable callback so refreshKey is the only intentional refetch trigger
+  // 稳定 callback，使 refreshKey 成为唯一有意触发 refetch 的因素
   const loadHistory = useCallback(async (options?: { silent?: boolean }) => {
     const silent = options?.silent === true;
     const epoch = ++historyEpochRef.current;
@@ -115,7 +115,7 @@ export default function Sidebar({
       );
     } catch (error) {
       if (epoch !== historyEpochRef.current) return;
-      // Polls while offline would otherwise spam toasts every 3s
+      // 离线轮询否则每 3s 刷屏 toast
       if (!silent) {
         const msg =
           error instanceof Error
@@ -134,14 +134,14 @@ export default function Sidebar({
     void loadHistory();
   }, [loadHistory, refreshKey]);
 
-  // While any conversation is generating in the background, poll so the
-  // sidebar indicator clears when the job finishes without switching back.
+  // 任一对话在后台生成时轮询，以便任务结束且未切回时
+  // 侧栏指示器能清除。
   const hasGenerating =
     generatingConversationIds.length > 0 ||
     items.some((item) => item.generating);
 
-  // Mid-stream disconnect keeps local generating markers for resume — do not
-  // hammer /api/conversations while the network or WS is down.
+  // 流式中断保留本地 generating 标记以便 resume —— 网络或 WS
+  // 不可用时勿频繁请求 /api/conversations。
   const canPollGenerating =
     hasGenerating && browserOnline && connectionStatus === 'open';
 
@@ -232,7 +232,7 @@ export default function Sidebar({
           await logout();
           serverLogoutOk = true;
         } catch {
-          // Still clear local session below; warn that server may keep the token briefly.
+          // 仍清除下方本地会话；提示服务端 token 可能短暂仍有效。
         } finally {
           onDisconnect?.();
           forceLogoutLocal({ reason: 'logout' });

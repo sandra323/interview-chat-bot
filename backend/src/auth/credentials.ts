@@ -8,7 +8,7 @@ function timingSafeEqualString(a: string, b: string): boolean {
   const bufA = Buffer.from(a, 'utf8');
   const bufB = Buffer.from(b, 'utf8');
   if (bufA.length !== bufB.length) {
-    // Spend comparable work on length mismatch without leaking which side differed.
+    // 长度不一致时也消耗相当的工作量，避免泄露哪一侧不同。
     timingSafeEqual(bufA, bufA);
     return false;
   }
@@ -20,8 +20,8 @@ export type CredentialCheckResult =
   | { ok: false; reason: 'empty' | 'too_long' | 'mismatch' };
 
 /**
- * Verify demo username/password against env.
- * Never distinguishes unknown user vs bad password in the result reason for clients.
+ * 对照环境变量校验演示用户名/密码。
+ * 对客户端不区分未知用户与错误密码（结果 reason 相同）。
  */
 export async function verifyDemoCredentials(input: {
   username: unknown;

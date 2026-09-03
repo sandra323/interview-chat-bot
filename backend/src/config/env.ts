@@ -12,15 +12,15 @@ const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const backendRoot = path.resolve(__dirname, '../..');
 const repoRoot = path.resolve(backendRoot, '..');
 
-/** bcrypt hash: $2a$ / $2b$ / $2y$ + cost + 53-char salt+hash */
+/** bcrypt 哈希格式：$2a$ / $2b$ / $2y$ + cost + 53 字符 salt+hash */
 const BCRYPT_HASH_RE = /^\$2[aby]\$\d{2}\$[./A-Za-z0-9]{53}$/;
 
-/** Load env from repo root then backend (later files override). Never commit real .env.local. */
+/** 从仓库根目录再加载 backend 目录下的 env（后加载的文件覆盖前者）。切勿提交真实的 .env.local。 */
 export function loadEnvFiles(): void {
   dotenv.config({ path: path.join(repoRoot, '.env') });
-  dotenv.config({ path: path.join(repoRoot, '.env.local') });
-  dotenv.config({ path: path.join(backendRoot, '.env') });
-  dotenv.config({ path: path.join(backendRoot, '.env.local') });
+  dotenv.config({ path: path.join(repoRoot, '.env.local'), override: true });
+  dotenv.config({ path: path.join(backendRoot, '.env'), override: true });
+  dotenv.config({ path: path.join(backendRoot, '.env.local'), override: true });
 }
 
 const DEFAULT_API_URL = 'https://api.deepseek.com/chat/completions';
@@ -33,11 +33,11 @@ export interface ServerEnv {
   llmApiUrl: string;
   llmApiKey: string;
   defaultModel: AllowedModelId;
-  /** Demo login username (env AUTH_USERNAME). */
+  /** 演示登录用户名（环境变量 AUTH_USERNAME）。 */
   authUsername: string;
-  /** bcrypt hash of demo password (env AUTH_PASSWORD_HASH). Never plaintext. */
+  /** 演示密码的 bcrypt 哈希（环境变量 AUTH_PASSWORD_HASH）。禁止明文。 */
   authPasswordHash: string;
-  /** Absolute session TTL in hours (env AUTH_SESSION_TTL_HOURS, default 24). */
+  /** 会话绝对 TTL，单位小时（环境变量 AUTH_SESSION_TTL_HOURS，默认 24）。 */
   authSessionTtlHours: number;
 }
 
@@ -82,8 +82,8 @@ export function assertLlmCredentials(env: ServerEnv): void {
 }
 
 /**
- * Fail fast if demo auth env is missing/invalid.
- * Does not support plaintext AUTH_PASSWORD (reject if set).
+ * 演示认证环境变量缺失或无效时快速失败。
+ * 不支持明文 AUTH_PASSWORD（若已设置则拒绝）。
  */
 export function assertAuthCredentials(env: ServerEnv): void {
   if (process.env.AUTH_PASSWORD?.trim()) {

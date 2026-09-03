@@ -26,16 +26,16 @@ interface ConversationsData {
   items: ConversationListItem[];
 }
 
-/** Default page size ≈ 5 user/assistant turns */
+/** 默认分页大小 ≈ 5 轮 user/assistant 对话 */
 export const HISTORY_PAGE_SIZE = 10;
 
-/** Fetch sidebar history from GET /api/conversations */
+/** 从 GET /api/conversations 拉取侧栏历史 */
 export async function fetchConversations(): Promise<ConversationListItem[]> {
   const data = await apiGet<ConversationsData>('/api/conversations');
   return data.items ?? [];
 }
 
-/** Paginated messages — page=1 is the newest batch */
+/** 分页消息 —— page=1 为最新一批 */
 export async function fetchConversationMessages(
   conversationId: string,
   options?: { page?: number; pageSize?: number },
@@ -51,7 +51,7 @@ export async function fetchConversationMessages(
   );
 }
 
-/** Rename a conversation (custom title) */
+/** 重命名对话（自定义标题） */
 export async function renameConversation(
   conversationId: string,
   title: string,
@@ -61,7 +61,7 @@ export async function renameConversation(
   });
 }
 
-/** Delete a conversation and its messages */
+/** 删除对话及其消息 */
 export async function deleteConversation(
   conversationId: string,
 ): Promise<{ id: string }> {

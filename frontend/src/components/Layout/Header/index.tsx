@@ -21,7 +21,7 @@ export default function Header({
   onClearChat,
   showMockBadge = false,
 }: HeaderProps) {
-  // App.useApp() modal inherits ConfigProvider dark theme (static Modal.confirm does not)
+  // App.useApp() modal 继承 ConfigProvider 暗色主题（静态 Modal.confirm 不会）
   const { modal } = App.useApp();
 
   const handleClear = () => {

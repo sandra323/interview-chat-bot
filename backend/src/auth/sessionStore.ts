@@ -5,7 +5,7 @@ import { fileURLToPath } from 'node:url';
 import Database from 'better-sqlite3';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
-/** Same default DB file as ChatStore — auth_sessions lives alongside chat tables. */
+/** 与 ChatStore 相同的默认 DB 文件——auth_sessions 与 chat 表共存。 */
 const DEFAULT_DB_PATH = path.resolve(__dirname, '../../.data/chat.db');
 
 export interface AuthSessionRow {
@@ -17,7 +17,7 @@ export interface AuthSessionRow {
 }
 
 export interface CreateSessionResult {
-  /** Opaque bearer token — returned once; never stored in plaintext. */
+  /** 不透明 Bearer token——仅返回一次；数据库中从不存明文。 */
   token: string;
   id: string;
   username: string;
@@ -63,9 +63,9 @@ export class AuthSessionStore {
   }
 
   /**
-   * Issue a new session. Stores only sha256(token).
-   * @param ttlHours absolute TTL from `now` (usually AUTH_SESSION_TTL_HOURS)
-   * @param now optional clock for tests
+   * 签发新会话。数据库中仅存储 sha256(token)。
+   * @param ttlHours 从 `now` 起的绝对 TTL（通常为 AUTH_SESSION_TTL_HOURS）
+   * @param now 可选时钟，供测试使用
    */
   createSession(
     username: string,
@@ -105,7 +105,7 @@ export class AuthSessionStore {
     };
   }
 
-  /** Valid = not revoked and not past expires_at. */
+  /** 有效 = 未撤销且未超过 expires_at。 */
   findValidByToken(
     rawToken: string,
     now: number = Date.now(),
@@ -135,7 +135,7 @@ export class AuthSessionStore {
     return row ?? null;
   }
 
-  /** Any session row for this token (including expired / revoked). */
+  /** 该 token 对应的任意会话行（含已过期 / 已撤销）。 */
   lookupByToken(rawToken: string): AuthSessionRow | null {
     if (!rawToken) {
       return null;
@@ -160,7 +160,7 @@ export class AuthSessionStore {
     return row ?? null;
   }
 
-  /** Valid session by primary key (for WS re-checks without raw token). */
+  /** 按主键查找有效会话（WebSocket 复查时无需原始 token）。 */
   findValidById(
     sessionId: string,
     now: number = Date.now(),
@@ -191,7 +191,7 @@ export class AuthSessionStore {
   }
 
   /**
-   * Mark session revoked. Idempotent: already-revoked / missing → false.
+   * 标记会话已撤销。幂等：已撤销 / 不存在 → 返回 false。
    */
   revokeByToken(rawToken: string, now: number = Date.now()): boolean {
     if (!rawToken) {
@@ -209,9 +209,9 @@ export class AuthSessionStore {
   }
 
   /**
-   * Revoke every active session for a username.
-   * @param exceptSessionId when set, keep that session (e.g. the one just created)
-   * @returns number of rows revoked
+   * 撤销某用户名的所有活跃会话。
+   * @param exceptSessionId 若设置则保留该会话（例如刚创建的那条）
+   * @returns 被撤销的行数
    */
   revokeAllForUsername(
     username: string,
@@ -246,8 +246,8 @@ export class AuthSessionStore {
   }
 
   /**
-   * Delete expired rows and already-revoked rows (no longer needed for auth).
-   * Returns deleted count.
+   * 删除已过期行和已撤销行（认证不再需要）。
+   * 返回删除的行数。
    */
   purgeExpired(now: number = Date.now()): number {
     const result = this.db

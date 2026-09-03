@@ -8,7 +8,7 @@ export interface ModelOption {
   providerLabel?: string;
 }
 
-/** Derived from `LLM_PROVIDERS` — add models there, not here. */
+/** 派生自 `LLM_PROVIDERS` —— 在此添加 model，而非本文件。 */
 export const MODEL_OPTIONS: ModelOption[] = getAllModelOptions();
 
 export const SUGGESTIONS = [

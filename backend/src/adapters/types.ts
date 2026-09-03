@@ -11,10 +11,10 @@ export class LLMAdapterError extends Error {
 }
 
 /**
- * Optional chat options.
- * - timeoutMs: longer windows for pro / thinking models
- * - extraBody: vendor fields (e.g. DeepSeek thinking)
- * - signal: external abort (user stop); combined with idle timeout
+ * 可选聊天请求参数。
+ * - timeoutMs：pro / thinking 模型可使用更长窗口
+ * - extraBody：厂商扩展字段（如 DeepSeek thinking）
+ * - signal：外部中止（用户停止）；与空闲超时组合使用
  */
 export interface ChatRequestOptions {
   timeoutMs?: number;

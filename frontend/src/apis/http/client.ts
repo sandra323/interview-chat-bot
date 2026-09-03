@@ -14,7 +14,7 @@ export class ApiError extends Error {
   }
 }
 
-/** Prefer server msg; otherwise fixed Chinese fallback. */
+/** 优先使用服务端 msg；否则使用固定中文兜底。 */
 export function userFacingApiMessage(
   err: unknown,
   fallback: string,
@@ -47,9 +47,9 @@ function buildHeaders(
 }
 
 /**
- * Shared unwrap for `/api/*` responses.
- * Throws ApiError when code !== 0 or data is null.
- * Triggers unauthorized cleanup only if this request carried a Bearer token.
+ * `/api/*` 响应的共享解包。
+ * code !== 0 或 data 为 null 时抛出 ApiError。
+ * 仅在本请求携带 Bearer token 时触发未授权清理。
  */
 async function unwrapApiResponse<T>(
   response: Response,
@@ -91,8 +91,8 @@ async function request<T>(
 }
 
 /**
- * GET helper for `/api/*` routes (Vite proxies `/api` → backend in dev).
- * Unwraps `{ code, msg, data }` — throws ApiError when code !== 0.
+ * `/api/*` 路由的 GET 辅助（开发时 Vite 将 `/api` 代理至 backend）。
+ * 解包 `{ code, msg, data }` —— code !== 0 时抛出 ApiError。
  */
 export async function apiGet<T>(path: string): Promise<T> {
   return request<T>(path, {
@@ -101,7 +101,7 @@ export async function apiGet<T>(path: string): Promise<T> {
   });
 }
 
-/** POST helper — JSON body */
+/** POST 辅助 —— JSON body */
 export async function apiPost<T>(path: string, body: unknown): Promise<T> {
   return request<T>(path, {
     method: 'POST',
@@ -110,7 +110,7 @@ export async function apiPost<T>(path: string, body: unknown): Promise<T> {
   });
 }
 
-/** PATCH helper — JSON body */
+/** PATCH 辅助 —— JSON body */
 export async function apiPatch<T>(
   path: string,
   body: unknown,
@@ -122,7 +122,7 @@ export async function apiPatch<T>(
   });
 }
 
-/** DELETE helper */
+/** DELETE 辅助 */
 export async function apiDelete<T>(path: string): Promise<T> {
   return request<T>(path, {
     method: 'DELETE',
