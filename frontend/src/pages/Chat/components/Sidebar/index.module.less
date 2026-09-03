@@ -28,19 +28,45 @@
   height: 100%;
 }
 
-.newChatWrap {
+.navWrap {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
   padding: 12px;
   flex-shrink: 0;
 }
 
-.newChatBtn {
+.navBtn {
   color: var(--color-text-secondary) !important;
   border-color: var(--color-border) !important;
   background: transparent !important;
+  box-shadow: none !important;
 }
 
-.newChatBtn:hover {
+.navBtn:hover {
   background: rgba(255, 255, 255, 0.05) !important;
+  box-shadow: none !important;
+}
+
+.navBtn:focus,
+.navBtn:focus-visible,
+.navBtn:active {
+  box-shadow: none !important;
+  outline: none !important;
+}
+
+.navBtnActive {
+  color: var(--color-selected-text) !important;
+  border-color: var(--color-primary) !important;
+  background: var(--color-selected-bg) !important;
+}
+
+.navBtnActive:hover,
+.navBtnActive:focus,
+.navBtnActive:focus-visible,
+.navBtnActive:active {
+  background: var(--color-selected-bg) !important;
+  box-shadow: none !important;
 }
 
 .history {

@@ -7,15 +7,15 @@ import Main from '@/components/Layout/Main';
 import ConnectionBanner from '@/components/ConnectionBanner';
 import { useChatService } from '@/hooks/useChatService';
 import { useChatStore } from '@/store/useChatStore';
-import MessageList from './components/MessageList';
-import ChatInput from './components/ChatInput';
 import Sidebar from './components/Sidebar';
+import { getMainViewChrome, MainView } from './mainView';
+import { renderMainView } from './renderMainView';
 import styles from './index.module.less';
 
 export default function ChatPage() {
   const [sidebarOpen, setSidebarOpen] = useState(true);
   const [historyRefreshKey, setHistoryRefreshKey] = useState(0);
-  const chatScrollRef = useRef<HTMLDivElement>(null);
+  const [mainView, setMainView] = useState<MainView>(MainView.Chat);
   const wasGeneratingRef = useRef(false);
   const skipInitialConvRefreshRef = useRef(true);
   const {
@@ -36,7 +36,6 @@ export default function ChatPage() {
   const conversationTitle = useChatStore((s) => s.conversationTitle);
   const model = useChatStore((s) => s.model);
   const ui = useChatStore((s) => s.ui);
-  const history = useChatStore((s) => s.history);
   const generatingConversationIds = useChatStore(
     (s) => s.generatingConversationIds,
   );
@@ -60,13 +59,19 @@ export default function ChatPage() {
     [setModel],
   );
 
+  const handleOpenLibrary = useCallback(() => {
+    setMainView(MainView.Library);
+  }, []);
+
   const handleNewChat = useCallback(() => {
+    setMainView(MainView.Chat);
     if (messageCount === 0) return;
     clearConversation();
   }, [clearConversation, messageCount]);
 
   const handleSelectConversation = useCallback(
     (id: string, title: string) => {
+      setMainView(MainView.Chat);
       void switchConversation(id, title);
     },
     [switchConversation],
@@ -85,13 +90,6 @@ export default function ChatPage() {
       state.setConversationTitle(title);
     }
   }, []);
-
-  const handleSuggestion = useCallback(
-    (text: string) => {
-      sendMessage(text);
-    },
-    [sendMessage],
-  );
 
   const handleGeneratingSync = useCallback(
     (serverGeneratingIds: string[]) => {
@@ -132,31 +130,35 @@ export default function ChatPage() {
     setHistoryRefreshKey((k) => k + 1);
   }, [conversationId, hasHydrated]);
 
-  const isInputDisabled =
-    (!USE_MOCK && ui.connectionStatus !== 'open') || history.loading;
-
   const modelLabel =
     MODEL_OPTIONS.find((m) => m.id === model)?.label ?? model;
+  const chrome = getMainViewChrome(mainView);
+  const conversationHeading = conversationTitle?.trim() || undefined;
 
   return (
     <div className={styles.page}>
       <Header
-        title={conversationTitle?.trim() || undefined}
+        title={chrome.headerTitle ?? conversationHeading}
         model={model}
         onModelChange={handleModelChange}
         onToggleSidebar={() => setSidebarOpen((v) => !v)}
         onClearChat={handleNewChat}
         showMockBadge={USE_MOCK}
+        showChatActions={chrome.showChatActions}
       />
       {!USE_MOCK && <ConnectionBanner status={ui.connectionStatus} />}
       <div className={styles.body}>
         <Sidebar
           open={sidebarOpen}
           refreshKey={historyRefreshKey}
-          activeConversationId={conversationId}
+          activeConversationId={
+            chrome.keepConversationActive ? conversationId : null
+          }
           generatingConversationIds={generatingConversationIds}
           modelLabel={modelLabel}
-          newChatDisabled={messageCount === 0}
+          newChatDisabled={messageCount === 0 && mainView === MainView.Chat}
+          libraryActive={mainView === MainView.Library}
+          onOpenLibrary={handleOpenLibrary}
           onNewChat={handleNewChat}
           onSelectConversation={handleSelectConversation}
           onGeneratingSync={handleGeneratingSync}
@@ -166,26 +168,13 @@ export default function ChatPage() {
         />
         <div className={styles.mainColumn}>
           <Main>
-            <section className={styles.chatArea} aria-label="Chat conversation">
-              <MessageList
-                loading={ui.loading && !isGenerating}
-                modelLabel={modelLabel}
-                onSuggestion={handleSuggestion}
-                scrollContainerRef={chatScrollRef}
-                conversationId={conversationId}
-                hasMoreHistory={history.hasMore}
-                loadingOlder={history.loadingMore}
-                onLoadOlder={() => {
-                  void loadOlderMessages();
-                }}
-              />
-              <ChatInput
-                onSend={sendMessage}
-                onStop={stopGeneration}
-                disabled={isInputDisabled}
-                isGenerating={isGenerating}
-              />
-            </section>
+            {renderMainView(mainView, {
+              onSend: sendMessage,
+              onStop: stopGeneration,
+              onLoadOlder: () => {
+                void loadOlderMessages();
+              },
+            })}
           </Main>
         </div>
       </div>

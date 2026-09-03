@@ -11,6 +11,8 @@ interface HeaderProps {
   onToggleSidebar: () => void;
   onClearChat: () => void;
   showMockBadge?: boolean;
+  /** 资料库页隐藏模型选择与清空对话 */
+  showChatActions?: boolean;
 }
 
 export default function Header({
@@ -20,6 +22,7 @@ export default function Header({
   onToggleSidebar,
   onClearChat,
   showMockBadge = false,
+  showChatActions = true,
 }: HeaderProps) {
   // App.useApp() modal 继承 ConfigProvider 暗色主题（静态 Modal.confirm 不会）
   const { modal } = App.useApp();
@@ -74,38 +77,42 @@ export default function Header({
           )}
         </div>
 
-        <div className={styles.actions}>
-          <Select
-            value={model}
-            onChange={onModelChange}
-            className={styles.modelSelect}
-            popupMatchSelectWidth={240}
-            optionLabelProp="label"
-            options={selectOptions}
-            optionRender={(option) => {
-              const badge = MODEL_OPTIONS.find(
-                (m) => m.id === option.value,
-              )?.badge;
-              return (
-                <div className={styles.modelOption}>
-                  <span className={styles.modelDot} />
-                  <span className={styles.modelLabel}>{option.label}</span>
-                  {badge ? (
-                    <Tag className={styles.modelBadge}>{badge}</Tag>
-                  ) : null}
-                </div>
-              );
-            }}
-          />
-          <Button
-            type="text"
-            icon={<ClearOutlined />}
-            onClick={handleClear}
-            className={styles.iconBtn}
-            aria-label="Clear chat history"
-            disabled={!title}
-          />
-        </div>
+        {showChatActions ? (
+          <div className={styles.actions}>
+            <Select
+              value={model}
+              onChange={onModelChange}
+              className={styles.modelSelect}
+              popupMatchSelectWidth={240}
+              optionLabelProp="label"
+              options={selectOptions}
+              optionRender={(option) => {
+                const badge = MODEL_OPTIONS.find(
+                  (m) => m.id === option.value,
+                )?.badge;
+                return (
+                  <div className={styles.modelOption}>
+                    <span className={styles.modelDot} />
+                    <span className={styles.modelLabel}>{option.label}</span>
+                    {badge ? (
+                      <Tag className={styles.modelBadge}>{badge}</Tag>
+                    ) : null}
+                  </div>
+                );
+              }}
+            />
+            <Button
+              type="text"
+              icon={<ClearOutlined />}
+              onClick={handleClear}
+              className={styles.iconBtn}
+              aria-label="Clear chat history"
+              disabled={!title}
+            />
+          </div>
+        ) : (
+          <div className={styles.actions} />
+        )}
       </header>
     </Affix>
   );

@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { App, Avatar, Button, Dropdown, Input, Modal, message as antdMessage } from 'antd';
 import {
+  DatabaseOutlined,
   DeleteOutlined,
   EditOutlined,
   EllipsisOutlined,
@@ -29,6 +30,9 @@ interface SidebarProps {
   modelLabel: string;
   /** 当前聊天已为空时禁用 */
   newChatDisabled?: boolean;
+  /** 右侧是否正在展示资料库 */
+  libraryActive?: boolean;
+  onOpenLibrary: () => void;
   onNewChat: () => void;
   onSelectConversation: (conversationId: string, title: string) => void;
   /** 从服务端列表同步本地 generating 标记 */
@@ -61,6 +65,8 @@ export default function Sidebar({
   generatingConversationIds,
   modelLabel,
   newChatDisabled = false,
+  libraryActive = false,
+  onOpenLibrary,
   onNewChat,
   onSelectConversation,
   onGeneratingSync,
@@ -252,11 +258,21 @@ export default function Sidebar({
       aria-hidden={!open}
     >
       <div className={styles.inner}>
-        <div className={styles.newChatWrap}>
+        <div className={styles.navWrap}>
+          <Button
+            block
+            icon={<DatabaseOutlined />}
+            className={`${styles.navBtn} ${
+              libraryActive ? styles.navBtnActive : ''
+            }`}
+            onClick={onOpenLibrary}
+          >
+            资料库
+          </Button>
           <Button
             block
             icon={<PlusOutlined />}
-            className={styles.newChatBtn}
+            className={styles.navBtn}
             onClick={onNewChat}
             disabled={newChatDisabled}
           >
