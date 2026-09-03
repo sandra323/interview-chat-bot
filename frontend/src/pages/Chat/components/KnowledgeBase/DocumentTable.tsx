@@ -53,10 +53,6 @@ export default function DocumentTable({
         title: '文件名称',
         dataIndex: 'filename',
         ellipsis: true,
-        shouldCellUpdate: (record, prev) =>
-          record.id !== prev.id ||
-          record.status !== prev.status ||
-          record.filename !== prev.filename,
         render: (_value, record) =>
           record.status === 'ready' ? (
             <Button
@@ -76,24 +72,18 @@ export default function DocumentTable({
         title: '上传时间',
         dataIndex: 'createdAt',
         width: '20%',
-        shouldCellUpdate: (record, prev) => record.createdAt !== prev.createdAt,
         render: (createdAt: number) => formatDateYYYYMMDD(createdAt),
       },
       {
         title: '大小',
         dataIndex: 'sizeBytes',
         width: '20%',
-        shouldCellUpdate: (record, prev) => record.sizeBytes !== prev.sizeBytes,
         render: (sizeBytes: number) => formatFileSize(sizeBytes),
       },
       {
         title: '上传进度',
         dataIndex: 'progress',
         width: '20%',
-        shouldCellUpdate: (record, prev) =>
-          record.status !== prev.status ||
-          record.progress !== prev.progress ||
-          record.error !== prev.error,
         render: (_value, record) => (
           <div className={styles.progressCell}>
             {record.status === 'queued' ? (
@@ -117,8 +107,6 @@ export default function DocumentTable({
         title: '操作',
         key: 'actions',
         width: '15%',
-        shouldCellUpdate: (record, prev) =>
-          record.id !== prev.id || record.status !== prev.status,
         render: (_value, record) => (
           <Button
             type="link"
@@ -136,6 +124,7 @@ export default function DocumentTable({
 
   return (
     <Table<KnowledgeDocument>
+      key={selecting ? 'selecting' : 'reading'}
       className={styles.table}
       rowKey="id"
       columns={columns}
