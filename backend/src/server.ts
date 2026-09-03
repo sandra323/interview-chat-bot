@@ -17,12 +17,17 @@ import { sendFail, sendSuccess } from './http/apiResponse.js';
 import { logger } from './utils/logger.js';
 import type { ServerEnv } from './config/env.js';
 import { ApiCode } from '@ai-chat/shared';
+import { createDocumentsRouter } from './documents/routes.js';
+import { getDocumentStore } from './documents/documentStore.js';
+import { getFileStorage } from './documents/fileStorage.js';
 
 export function createApp(env: ServerEnv): express.Application {
   const app = express();
 
-  // 启动时确保 auth_sessions 表结构存在（与 chat 共用同一 SQLite 文件）。
+  // 启动时确保 auth_sessions / documents 表结构存在（与 chat 共用同一 SQLite 文件）。
   getAuthSessionStore();
+  getDocumentStore();
+  getFileStorage();
 
   // 反向代理后修正客户端 IP（用于登录限流）。
   if (env.nodeEnv === 'production') {
@@ -193,6 +198,7 @@ export function createApp(env: ServerEnv): express.Application {
   });
 
   app.use('/api/conversations', conversations);
+  app.use('/api/documents', createDocumentsRouter());
   return app;
 }
 
@@ -299,6 +305,12 @@ export function setupGracefulShutdown(
 
     try {
       getAuthSessionStore().close();
+    } catch {
+      // 忽略
+    }
+
+    try {
+      getDocumentStore().close();
     } catch {
       // 忽略
     }

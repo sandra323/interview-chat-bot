@@ -4,14 +4,194 @@
   flex: 1;
   min-height: 0;
   overflow: hidden;
-  align-items: center;
-  justify-content: center;
+  padding: 20px 24px 16px;
   background: var(--color-background);
 }
 
-.placeholder {
+.toolbar {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 16px;
+  flex-shrink: 0;
+  margin-bottom: 16px;
+}
+
+.search {
+  width: 320px;
+  max-width: 100%;
+}
+
+.toolbarActions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-shrink: 0;
+}
+
+.fileInput {
+  display: none;
+}
+
+.tableWrap {
+  flex: 1;
+  min-height: 0;
+  overflow: auto;
+}
+
+.table {
+  :global(.ant-table) {
+    background: transparent;
+  }
+
+  :global(.ant-table-table) {
+    table-layout: fixed;
+  }
+
+  :global(.ant-table-thead > tr > th) {
+    background: var(--color-muted) !important;
+    color: var(--color-text-secondary);
+    border-bottom-color: var(--color-border) !important;
+  }
+
+  :global(.ant-table-tbody > tr > td) {
+    border-bottom-color: var(--color-border) !important;
+  }
+
+  :global(.ant-table-tbody > tr:hover > td) {
+    background: rgba(255, 255, 255, 0.03) !important;
+  }
+
+  :global(.ant-pagination) {
+    margin-top: 16px;
+  }
+
+  :global(.ant-table-selection-column) {
+    width: 48px;
+  }
+}
+
+.fileLink {
+  display: block;
+  padding: 0 !important;
+  height: auto !important;
+  max-width: 100%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  text-align: left;
+  white-space: nowrap;
+}
+
+.fileNameMuted {
+  display: block;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  color: var(--color-text-secondary);
+}
+
+.actionLink {
+  padding: 0 !important;
+  height: auto !important;
+}
+
+.progressCell {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+}
+
+.queuedLabel {
+  color: var(--color-text-secondary);
+  font-size: 13px;
+  line-height: 22px;
+}
+
+.progressCell :global(.ant-progress) {
+  flex: 1;
+  margin-bottom: 0;
+}
+
+.errorIcon {
+  color: var(--color-error);
+  cursor: help;
+  flex-shrink: 0;
+}
+
+.previewDrawer {
+  :global(.ant-drawer-body) {
+    display: flex;
+    flex-direction: column;
+    height: 100%;
+    padding: 0;
+    overflow: hidden;
+  }
+}
+
+.previewStatus,
+.previewError {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex: 1;
+  min-height: 240px;
   margin: 0;
-  font-size: 20px;
+  padding: 24px;
+  color: var(--color-text-secondary);
+}
+
+.previewError {
+  color: var(--color-error);
+}
+
+.pdfFrame {
+  flex: 1;
+  width: 100%;
+  min-height: 0;
+  border: 0;
+  background: #fff;
+}
+
+.markdown {
+  flex: 1;
+  min-height: 0;
+  overflow: auto;
+  padding: 20px 24px 32px;
+  font-size: 14px;
+  line-height: 1.625;
+  color: #e2e8f0;
+}
+
+.streamdown {
+  color: #e2e8f0;
+}
+
+.streamdown :global(p) {
+  margin: 0 0 0.5em;
+}
+
+.streamdown :global(p:last-child) {
+  margin-bottom: 0;
+}
+
+.streamdown :global(h1),
+.streamdown :global(h2),
+.streamdown :global(h3) {
+  margin: 0.75em 0 0.35em;
   font-weight: 600;
-  color: var(--color-foreground);
+  color: #f1f5f9;
+}
+
+.streamdown :global(ul),
+.streamdown :global(ol) {
+  margin: 0.5em 0;
+  padding-left: 1.25rem;
+}
+
+.streamdown :global(pre) {
+  overflow-x: auto;
+  padding: 12px 14px;
+  border-radius: var(--radius-lg);
+  background: rgba(15, 23, 42, 0.85);
 }

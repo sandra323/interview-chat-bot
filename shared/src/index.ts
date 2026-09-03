@@ -18,6 +18,17 @@ export type {
 } from './types/websocket.js';
 export type { ApiResponse, ApiCodeValue } from './types/api.js';
 export { ApiCode } from './types/api.js';
+export type {
+  DocumentStatus,
+  KnowledgeDocument,
+  KnowledgeDocumentPage,
+} from './types/document.js';
+export {
+  DOCUMENT_STATUSES,
+  DOCUMENT_MAX_BYTES,
+  DOCUMENT_PAGE_SIZE,
+  DOCUMENT_FILE_ACCEPT,
+} from './types/document.js';
 export {
   DEFAULT_LLM_TIMEOUT_MS,
   MODEL_TIMEOUT_MS,

@@ -142,6 +142,7 @@ export default function ChatPage() {
         model={model}
         onModelChange={handleModelChange}
         onToggleSidebar={() => setSidebarOpen((v) => !v)}
+        sidebarOpen={sidebarOpen}
         onClearChat={handleNewChat}
         showMockBadge={USE_MOCK}
         showChatActions={chrome.showChatActions}

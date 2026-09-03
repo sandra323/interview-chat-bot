@@ -1,5 +1,9 @@
 import { Affix, App, Button, Select, Tag } from 'antd';
-import { ClearOutlined, MenuOutlined } from '@ant-design/icons';
+import {
+  ClearOutlined,
+  MenuFoldOutlined,
+  MenuUnfoldOutlined,
+} from '@ant-design/icons';
 import CatBotIcon from '@/components/CatBotIcon';
 import { MODEL_OPTIONS } from '@/config/models';
 import styles from './index.module.less';
@@ -9,6 +13,7 @@ interface HeaderProps {
   model: string;
   onModelChange: (model: string) => void;
   onToggleSidebar: () => void;
+  sidebarOpen?: boolean;
   onClearChat: () => void;
   showMockBadge?: boolean;
   /** 资料库页隐藏模型选择与清空对话 */
@@ -20,6 +25,7 @@ export default function Header({
   model,
   onModelChange,
   onToggleSidebar,
+  sidebarOpen = true,
   onClearChat,
   showMockBadge = false,
   showChatActions = true,
@@ -51,7 +57,7 @@ export default function Header({
       <header className={styles.header}>
         <Button
           type="text"
-          icon={<MenuOutlined />}
+          icon={sidebarOpen ? <MenuFoldOutlined /> : <MenuUnfoldOutlined />}
           onClick={onToggleSidebar}
           className={styles.iconBtn}
           aria-label="Toggle sidebar"

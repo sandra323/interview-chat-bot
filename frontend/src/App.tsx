@@ -41,6 +41,9 @@ const antdTheme = {
       headerBg: '#1c2333',
       footerBg: '#1c2333',
     },
+    Drawer: {
+      colorBgElevated: '#1c2333',
+    },
   },
 };
 
