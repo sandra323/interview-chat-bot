@@ -23,16 +23,16 @@ const splitter = new RecursiveCharacterTextSplitter({
   chunkSize: CHUNK_SIZE,
   chunkOverlap: CHUNK_OVERLAP,
   separators: ['\n\n', '\n', '。', '！', '？', '；', ' ', ''],
-}); // 创建一个RecursiveCharacterTextSplitter实例
+});
 
-const HEADING_RE = /^(#{1,6})\s+(.+)$/; // 匹配标题
+const HEADING_RE = /^(#{1,6})\s+(.+)$/;
 
 export async function chunkDocument(
-  parsed: ParsedDocument, // 解析后的文档
-  filename: string, // 文件名
+  parsed: ParsedDocument,
+  filename: string,
 ): Promise<ChunkDraft[]> {
-  const units = structuralUnits(parsed, filename); // 结构化单元
-  const drafts: ChunkDraft[] = []; // 草稿
+  const units = structuralUnits(parsed, filename);
+  const drafts: ChunkDraft[] = [];
 
   for (const unit of units) {
     const text = collapseWhitespace(unit.content);
@@ -57,7 +57,6 @@ export async function chunkDocument(
   return drafts;
 }
 
-/** 结构化单元 */
 function structuralUnits(
   parsed: ParsedDocument,
   filename: string,
