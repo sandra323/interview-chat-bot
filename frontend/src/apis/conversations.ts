@@ -5,6 +5,7 @@ export interface ConversationListItem {
   title: string;
   updatedAt: number;
   generating?: boolean;
+  knowledgeBaseId?: string | null;
 }
 
 export interface ConversationMessageItem {
@@ -20,6 +21,7 @@ export interface ConversationMessagesPage {
   pageSize: number;
   total: number;
   hasMore: boolean;
+  knowledgeBaseId?: string | null;
 }
 
 interface ConversationsData {
@@ -51,14 +53,20 @@ export async function fetchConversationMessages(
   );
 }
 
+/** 重命名对话或绑定知识库 */
+export async function patchConversation(
+  conversationId: string,
+  patch: { title?: string; knowledgeBaseId?: string | null },
+): Promise<{ id: string; title: string; knowledgeBaseId: string | null }> {
+  return apiPatch(`/api/conversations/${encodeURIComponent(conversationId)}`, patch);
+}
+
 /** 重命名对话（自定义标题） */
 export async function renameConversation(
   conversationId: string,
   title: string,
 ): Promise<{ id: string; title: string }> {
-  return apiPatch(`/api/conversations/${encodeURIComponent(conversationId)}`, {
-    title,
-  });
+  return patchConversation(conversationId, { title });
 }
 
 /** 删除对话及其消息 */

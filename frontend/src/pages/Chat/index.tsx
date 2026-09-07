@@ -5,6 +5,9 @@ import { MODEL_OPTIONS } from '@/config/models';
 import Header from '@/components/Layout/Header';
 import Main from '@/components/Layout/Main';
 import ConnectionBanner from '@/components/ConnectionBanner';
+import { fetchKnowledgeBases } from '@/apis/knowledgeBases';
+import { patchConversation } from '@/apis/conversations';
+import { userFacingApiMessage } from '@/apis/http/client';
 import { useChatService } from '@/hooks/useChatService';
 import { useChatStore } from '@/store/useChatStore';
 import Sidebar from './components/Sidebar';
@@ -40,10 +43,15 @@ export default function ChatPage() {
     (s) => s.generatingConversationIds,
   );
   const hasHydrated = useChatStore((s) => s._hasHydrated);
+  const knowledgeBaseId = useChatStore((s) => s.knowledgeBaseId);
   const setModel = useChatStore((s) => s.setModel);
+  const setKnowledgeBaseId = useChatStore((s) => s.setKnowledgeBaseId);
   const setError = useChatStore((s) => s.setError);
   const syncGeneratingFromServer = useChatStore(
     (s) => s.syncGeneratingFromServer,
+  );
+  const [kbOptions, setKbOptions] = useState<{ value: string; label: string }[]>(
+    [],
   );
 
   useEffect(() => {
@@ -52,11 +60,44 @@ export default function ChatPage() {
     setError(null);
   }, [ui.error, setError]);
 
+  useEffect(() => {
+    if (USE_MOCK) return;
+    let cancelled = false;
+    void fetchKnowledgeBases()
+      .then((items) => {
+        if (cancelled) return;
+        setKbOptions(items.map((kb) => ({ value: kb.id, label: kb.name })));
+      })
+      .catch((error: unknown) => {
+        if (cancelled) return;
+        antdMessage.error(userFacingApiMessage(error, '哎呀，知识库列表加载失败了'));
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
   const handleModelChange = useCallback(
     (next: string) => {
       setModel(next);
     },
     [setModel],
+  );
+
+  const handleKnowledgeBaseChange = useCallback(
+    (next: string | null) => {
+      setKnowledgeBaseId(next);
+      const id = useChatStore.getState().conversationId;
+      if (!id || USE_MOCK) return;
+      void patchConversation(id, { knowledgeBaseId: next }).catch(
+        (error: unknown) => {
+          antdMessage.error(
+            userFacingApiMessage(error, '哎呀，知识库绑定失败了'),
+          );
+        },
+      );
+    },
+    [setKnowledgeBaseId],
   );
 
   const handleOpenLibrary = useCallback(() => {
@@ -70,8 +111,9 @@ export default function ChatPage() {
   }, [clearConversation, messageCount]);
 
   const handleSelectConversation = useCallback(
-    (id: string, title: string) => {
+    (id: string, title: string, nextKbId: string | null) => {
       setMainView(MainView.Chat);
+      useChatStore.getState().setKnowledgeBaseId(nextKbId);
       void switchConversation(id, title);
     },
     [switchConversation],
@@ -141,6 +183,10 @@ export default function ChatPage() {
         title={chrome.headerTitle ?? conversationHeading}
         model={model}
         onModelChange={handleModelChange}
+        knowledgeBaseId={knowledgeBaseId}
+        knowledgeBaseOptions={kbOptions}
+        onKnowledgeBaseChange={handleKnowledgeBaseChange}
+        knowledgeBaseDisabled={isGenerating}
         onToggleSidebar={() => setSidebarOpen((v) => !v)}
         sidebarOpen={sidebarOpen}
         onClearChat={handleNewChat}

@@ -4,7 +4,11 @@ import type { WebSocketClient } from './client';
 export function sendChatMessage(
   client: WebSocketClient,
   content: string,
-  options?: { model?: string; conversationId?: string },
+  options?: {
+    model?: string;
+    conversationId?: string;
+    knowledgeBaseId?: string | null;
+  },
 ): boolean {
   return client.send({
     type: 'chat',
@@ -12,6 +16,9 @@ export function sendChatMessage(
     ...(options?.model ? { model: options.model } : {}),
     ...(options?.conversationId
       ? { conversationId: options.conversationId }
+      : {}),
+    ...(options?.knowledgeBaseId
+      ? { knowledgeBaseId: options.knowledgeBaseId }
       : {}),
   });
 }

@@ -16,6 +16,7 @@ export type {
   ServerMessage,
   ConnectionStatus,
 } from './types/websocket.js';
+export { KNOWLEDGE_BASE_SEARCH_TOOL } from './types/websocket.js';
 export type { ApiResponse, ApiCodeValue } from './types/api.js';
 export { ApiCode } from './types/api.js';
 export type {

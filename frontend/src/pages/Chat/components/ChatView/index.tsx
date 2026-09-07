@@ -18,6 +18,7 @@ export default function ChatView({ onSend, onStop, onLoadOlder }: ChatViewProps)
   const model = useChatStore((s) => s.model);
   const ui = useChatStore((s) => s.ui);
   const history = useChatStore((s) => s.history);
+  const retrievalHint = useChatStore((s) => s.retrievalHint);
   const hasPendingAssistant = useChatStore((s) =>
     s.messages.some((m) => m.role === 'assistant' && m.status === 'pending'),
   );
@@ -47,6 +48,11 @@ export default function ChatView({ onSend, onStop, onLoadOlder }: ChatViewProps)
         loadingOlder={history.loadingMore}
         onLoadOlder={onLoadOlder}
       />
+      {retrievalHint ? (
+        <p className={styles.retrievalHint} role="status">
+          {retrievalHint}
+        </p>
+      ) : null}
       <ChatInput
         onSend={onSend}
         onStop={onStop}

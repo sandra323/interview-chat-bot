@@ -9,6 +9,8 @@ export interface ConnectionState {
   authenticated: boolean;
   /** WebSocket 认证成功后的 auth_sessions.id */
   sessionId: string | null;
+  /** 认证成功后的用户名，供 RAG owner 隔离；不来自客户端 */
+  username: string | null;
   /** 若认证始终未到达则关闭 socket 的定时器 */
   authDeadlineTimer: ReturnType<typeof setTimeout> | null;
 }
@@ -26,6 +28,7 @@ export class ConnectionManager {
       ws,
       authenticated: false,
       sessionId: null,
+      username: null,
       authDeadlineTimer: null,
     };
     this.connections.set(connectionId, state);

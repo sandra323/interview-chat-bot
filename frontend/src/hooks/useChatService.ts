@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useRef } from 'react';
 import type { Message, ServerMessage } from '@ai-chat/shared';
+import { KNOWLEDGE_BASE_SEARCH_TOOL } from '@ai-chat/shared';
 import { USE_MOCK, MOCK_REPLY_DELAY_MS } from '@/config/app';
 import { generateMockReply, MOCK_INITIAL_MESSAGES } from '@/mocks/chatMock';
 import { parseServerMessage } from '@/apis/websocket/messageParser';
@@ -276,6 +277,8 @@ async function syncHistoryPaginationMeta(): Promise<void> {
     });
     if (useChatStore.getState().conversationId !== conversationId) return;
 
+    useChatStore.getState().setKnowledgeBaseId(page.knowledgeBaseId ?? null);
+
     const localCount = useChatStore.getState().messages.length;
     setHistory({
       page: Math.max(1, Math.ceil(localCount / HISTORY_PAGE_SIZE) || 1),
@@ -439,6 +442,7 @@ function handleServerMessage(raw: string): void {
       break;
     case 'reply_start': {
       markConversationGenerating(message.conversationId);
+      useChatStore.getState().setRetrievalHint(null);
       if (!isActiveConversation(message.conversationId)) break;
       const existing = useChatStore
         .getState()
@@ -513,6 +517,7 @@ function handleServerMessage(raw: string): void {
       clearConversationGenerating(message.conversationId);
       clearAwaitingCatchup(message.generationId);
       awaitingConversationCatchup.delete(message.conversationId);
+      useChatStore.getState().setRetrievalHint(null);
       if (!isActiveConversation(message.conversationId)) break;
       // 完整快照 —— 流式结束后的权威校正
       updateMessage(message.generationId, {
@@ -545,6 +550,7 @@ function handleServerMessage(raw: string): void {
       clearConversationGenerating(message.conversationId);
       clearAwaitingCatchup(message.generationId);
       awaitingConversationCatchup.delete(message.conversationId);
+      useChatStore.getState().setRetrievalHint(null);
       if (!isActiveConversation(message.conversationId)) break;
       setLoading(false);
       setError(message.message);
@@ -566,10 +572,24 @@ function handleServerMessage(raw: string): void {
     case 'error':
       setLoading(false);
       setError(message.message);
+      useChatStore.getState().setRetrievalHint(null);
       if (message.code === 'ALREADY_PROCESSING') {
         break;
       }
       markPendingAssistantError();
+      break;
+    case 'tool_event':
+      if (!isActiveConversation(message.conversationId)) break;
+      if (message.name !== KNOWLEDGE_BASE_SEARCH_TOOL) break;
+      if (message.event === 'start') {
+        useChatStore.getState().setRetrievalHint('正在检索知识库…');
+      } else if (message.event === 'error') {
+        useChatStore
+          .getState()
+          .setRetrievalHint('知识库检索暂不可用，将按普通对话回答');
+      } else {
+        useChatStore.getState().setRetrievalHint(null);
+      }
       break;
     default:
       break;
@@ -723,6 +743,7 @@ function useMockChatService() {
       if (epoch !== navEpochRef.current) return;
 
       useChatStore.getState().setConversationId(nextId);
+      useChatStore.getState().setKnowledgeBaseId(page.knowledgeBaseId ?? null);
       useChatStore.getState().setMessages(mapHistoryItems(page.items));
       useChatStore.getState().setHistory({
         page: page.page,
@@ -899,7 +920,7 @@ function useRealChatService() {
         return false;
       }
 
-      const { model, conversationId, conversationTitle } =
+      const { model, conversationId, conversationTitle, knowledgeBaseId } =
         useChatStore.getState();
 
       const userMessage = createMessage('user', trimmed);
@@ -913,6 +934,7 @@ function useRealChatService() {
       const sent = sendChatMessage(client, trimmed, {
         model,
         conversationId: conversationId ?? undefined,
+        knowledgeBaseId,
       });
       if (!sent) {
         removeMessageById(userMessage.id);
@@ -1012,6 +1034,7 @@ function useRealChatService() {
       if (epoch !== navEpochRef.current) return;
 
       useChatStore.getState().setConversationId(nextId);
+      useChatStore.getState().setKnowledgeBaseId(page.knowledgeBaseId ?? null);
       useChatStore.getState().setMessages(mapHistoryItems(page.items));
       useChatStore.getState().setHistory({
         page: page.page,

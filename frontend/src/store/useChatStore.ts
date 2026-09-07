@@ -35,6 +35,12 @@ interface ChatState {
    * 不持久化 —— 刷新后侧栏亦信任服务端 `generating`。
    */
   generatingConversationIds: string[];
+  /**
+   * 当前会话绑定的知识库。从服务端派生，不 persist。
+   */
+  knowledgeBaseId: string | null;
+  /** 检索状态行（tool_event），不 persist */
+  retrievalHint: string | null;
   _hasHydrated: boolean;
   addMessage: (message: Message) => void;
   updateMessage: (id: string, updates: Partial<Message>) => void;
@@ -43,6 +49,8 @@ interface ChatState {
   prependMessages: (messages: Message[]) => void;
   setConversationId: (id: string | null) => void;
   setConversationTitle: (title: string | null) => void;
+  setKnowledgeBaseId: (id: string | null) => void;
+  setRetrievalHint: (hint: string | null) => void;
   setModel: (model: string) => void;
   setLoading: (loading: boolean) => void;
   setError: (error: string | null) => void;
@@ -97,6 +105,8 @@ export const useChatStore = create<ChatState>()(
       },
       history: { ...INITIAL_HISTORY },
       generatingConversationIds: [],
+      knowledgeBaseId: null,
+      retrievalHint: null,
       _hasHydrated: false,
 
       addMessage: (message) =>
@@ -129,6 +139,10 @@ export const useChatStore = create<ChatState>()(
       setConversationId: (conversationId) => set({ conversationId }),
 
       setConversationTitle: (conversationTitle) => set({ conversationTitle }),
+
+      setKnowledgeBaseId: (knowledgeBaseId) => set({ knowledgeBaseId }),
+
+      setRetrievalHint: (retrievalHint) => set({ retrievalHint }),
 
       setModel: (model) => set({ model }),
 
@@ -181,6 +195,8 @@ export const useChatStore = create<ChatState>()(
           messages: [],
           conversationId: null,
           conversationTitle: null,
+          knowledgeBaseId: null,
+          retrievalHint: null,
           history: { ...INITIAL_HISTORY },
         }),
 

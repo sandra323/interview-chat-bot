@@ -21,9 +21,13 @@ export function normalizeRetrievalQuery(query: string): string {
   return trimmed.slice(0, EMBED_MAX_INPUT_CHARS);
 }
 
+export function isKnowledgeBaseId(knowledgeBaseId: string): boolean {
+  return UUID_RE.test(knowledgeBaseId);
+}
+
 /** 非法 knowledgeBaseId 抛 RetrievalQueryError，避免一路空一路抛。 */
 export function assertKnowledgeBaseId(knowledgeBaseId: string): void {
-  if (!UUID_RE.test(knowledgeBaseId)) {
+  if (!isKnowledgeBaseId(knowledgeBaseId)) {
     throw new RetrievalQueryError('knowledgeBaseId must be a UUID');
   }
 }

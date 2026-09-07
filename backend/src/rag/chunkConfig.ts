@@ -82,6 +82,12 @@ export function resolveRerankTopN(n?: number): number {
   return resolveClampedK(n, RERANK_TOP_N, RERANK_MAX_N);
 }
 
+/** Chat 检索整体超时（含 hybrid + 可选 rerank）。超时视为检索不可用。 */
+export const RETRIEVAL_TIMEOUT_MS = 20_000;
+
+/** 注入模型的摘录总字数上限，避免撑爆上下文。 */
+export const RAG_EXCERPT_MAX_CHARS = 8000;
+
 export const INGEST_PROGRESS = {
   started: 10,
   parsed: 30,

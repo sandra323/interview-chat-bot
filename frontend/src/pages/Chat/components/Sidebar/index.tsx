@@ -34,7 +34,11 @@ interface SidebarProps {
   libraryActive?: boolean;
   onOpenLibrary: () => void;
   onNewChat: () => void;
-  onSelectConversation: (conversationId: string, title: string) => void;
+  onSelectConversation: (
+    conversationId: string,
+    title: string,
+    knowledgeBaseId: string | null,
+  ) => void;
   /** 从服务端列表同步本地 generating 标记 */
   onGeneratingSync?: (serverGeneratingIds: string[]) => void;
   /** 当前聊天被删除 —— 父组件应清除本地会话 */
@@ -304,12 +308,24 @@ export default function Sidebar({
                   active ? styles.historyItemActive : ''
                 } ${menuOpen ? styles.historyItemMenuOpen : ''}`}
                 onClick={() => {
-                  if (!active) onSelectConversation(item.id, item.title);
+                  if (!active) {
+                    onSelectConversation(
+                      item.id,
+                      item.title,
+                      item.knowledgeBaseId ?? null,
+                    );
+                  }
                 }}
                 onKeyDown={(e) => {
                   if (e.key === 'Enter' || e.key === ' ') {
                     e.preventDefault();
-                    if (!active) onSelectConversation(item.id, item.title);
+                    if (!active) {
+                    onSelectConversation(
+                      item.id,
+                      item.title,
+                      item.knowledgeBaseId ?? null,
+                    );
+                  }
                   }
                 }}
                 aria-current={active ? 'true' : undefined}

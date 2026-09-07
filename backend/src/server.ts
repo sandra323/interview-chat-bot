@@ -18,10 +18,13 @@ import { logger } from './utils/logger.js';
 import type { ServerEnv } from './config/env.js';
 import { ApiCode } from '@ai-chat/shared';
 import { createDocumentsRouter } from './documents/routes.js';
+import { sendPgUnavailable } from './documents/multerUpload.js';
 import { createKnowledgeBasesRouter } from './knowledge-bases/routes.js';
 import { getDocumentStore } from './documents/documentStore.js';
 import { getFileStorage } from './documents/fileStorage.js';
+import { getByIdForOwner } from './rag/knowledgeBaseStore.js';
 import { closePool } from './rag/pg.js';
+import { isKnowledgeBaseId } from './rag/retrievalQuery.js';
 
 export function createApp(env: ServerEnv): express.Application {
   const app = express();
@@ -62,6 +65,8 @@ export function createApp(env: ServerEnv): express.Application {
 
   app.use('/api/auth', createAuthRouter(env));
 
+  const pgEnabled = Boolean(env.databaseUrl);
+
   // 会话 API 需要有效的 Bearer 会话（/health 和 /api/auth 除外）。
   const conversations = express.Router();
   conversations.use(requireAuth);
@@ -83,8 +88,8 @@ export function createApp(env: ServerEnv): express.Application {
     }
   });
 
-  // 重命名会话（自定义标题；不改变列表顺序）
-  conversations.patch('/:id', (req, res) => {
+  // 重命名会话和/或绑定知识库（不改变列表顺序）
+  conversations.patch('/:id', async (req, res) => {
     try {
       const conversationId = req.params.id;
       const store = getChatStore();
@@ -96,34 +101,99 @@ export function createApp(env: ServerEnv): express.Application {
         return;
       }
 
-      const title =
-        typeof req.body?.title === 'string' ? req.body.title.trim() : '';
-      if (!title) {
+      const body = req.body as Record<string, unknown> | undefined;
+      const hasTitle = typeof body?.title === 'string';
+      const hasKb =
+        body !== undefined &&
+        Object.prototype.hasOwnProperty.call(body, 'knowledgeBaseId');
+      if (!hasTitle && !hasKb) {
         sendFail(res, {
           code: ApiCode.BAD_REQUEST,
-          msg: '哎呀，标题不能为空',
-          httpStatus: 400,
-        });
-        return;
-      }
-      if (title.length > 100) {
-        sendFail(res, {
-          code: ApiCode.BAD_REQUEST,
-          msg: '哎呀，标题太长了，请缩短一点',
+          msg: '哎呀，没有要更新的内容',
           httpStatus: 400,
         });
         return;
       }
 
-      store.renameConversation(conversationId, title);
-      sendSuccess(res, { id: conversationId, title });
+      if (hasTitle) {
+        const title = (body.title as string).trim();
+        if (!title) {
+          sendFail(res, {
+            code: ApiCode.BAD_REQUEST,
+            msg: '哎呀，标题不能为空',
+            httpStatus: 400,
+          });
+          return;
+        }
+        if (title.length > 100) {
+          sendFail(res, {
+            code: ApiCode.BAD_REQUEST,
+            msg: '哎呀，标题太长了，请缩短一点',
+            httpStatus: 400,
+          });
+          return;
+        }
+        store.renameConversation(conversationId, title);
+      }
+
+      if (hasKb) {
+        const rawKb = body.knowledgeBaseId;
+        if (rawKb === null) {
+          store.setConversationKnowledgeBaseId(conversationId, null);
+        } else if (typeof rawKb !== 'string') {
+          sendFail(res, {
+            code: ApiCode.BAD_REQUEST,
+            msg: '哎呀，知识库编号不对',
+            httpStatus: 400,
+          });
+          return;
+        } else {
+          const knowledgeBaseId = rawKb.trim();
+          if (!isKnowledgeBaseId(knowledgeBaseId)) {
+            sendFail(res, {
+              code: ApiCode.BAD_REQUEST,
+              msg: '哎呀，知识库编号不对',
+              httpStatus: 400,
+            });
+            return;
+          }
+          if (!pgEnabled) {
+            sendPgUnavailable(res);
+            return;
+          }
+          const ownerUsername = req.auth?.username;
+          if (!ownerUsername) {
+            sendFail(res, {
+              code: ApiCode.UNAUTHORIZED,
+              msg: '请先登录',
+            });
+            return;
+          }
+          const kb = await getByIdForOwner(knowledgeBaseId, ownerUsername);
+          if (!kb) {
+            sendFail(res, {
+              code: ApiCode.NOT_FOUND,
+              msg: '哎呀，找不到这个知识库',
+            });
+            return;
+          }
+          store.setConversationKnowledgeBaseId(conversationId, knowledgeBaseId);
+        }
+      }
+
+      const record = store.getConversation(conversationId);
+      sendSuccess(res, {
+        id: conversationId,
+        title: record?.title?.trim() || '',
+        knowledgeBaseId: record?.knowledgeBaseId ?? null,
+      });
     } catch (error) {
-      logger.error('Failed to rename conversation', {
+      logger.error('Failed to update conversation', {
         error: error instanceof Error ? error.message : 'Unknown error',
       });
       sendFail(res, {
         code: ApiCode.INTERNAL_ERROR,
-        msg: '哎呀，重命名失败了，请稍后重试',
+        msg: '哎呀，更新失败了，请稍后重试',
       });
     }
   });
@@ -200,7 +270,6 @@ export function createApp(env: ServerEnv): express.Application {
   });
 
   app.use('/api/conversations', conversations);
-  const pgEnabled = Boolean(env.databaseUrl);
   app.use('/api/documents', createDocumentsRouter(pgEnabled));
   app.use('/api/knowledge-bases', createKnowledgeBasesRouter(pgEnabled));
   return app;

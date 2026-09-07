@@ -14,6 +14,9 @@ export type ErrorCode =
 
 export type ToolEventName = 'start' | 'end' | 'error';
 
+/** Phase 7 知识库检索在 tool_event.name 中使用的固定值 */
+export const KNOWLEDGE_BASE_SEARCH_TOOL = 'knowledge_base_search';
+
 export type ReplyEndReason = 'completed' | 'cancelled';
 
 /**
@@ -28,6 +31,7 @@ export type ClientMessage =
       content: string;
       model?: string;
       conversationId?: string;
+      knowledgeBaseId?: string;
     }
   | { type: 'hello'; conversationId?: string }
   | {

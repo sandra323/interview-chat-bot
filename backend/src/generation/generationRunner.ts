@@ -129,6 +129,7 @@ export class GenerationRunner {
       if (!store.findValidById(connection.sessionId)) {
         connection.authenticated = false;
         connection.sessionId = null;
+        connection.username = null;
         if (connection.ws.readyState === connection.ws.OPEN) {
           connection.ws.send(
             JSON.stringify({

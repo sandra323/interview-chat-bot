@@ -1,6 +1,9 @@
 import {
+  DEFAULT_SCENARIO_ID,
   isAllowedModelId,
+  KNOWLEDGE_BASE_SEARCH_TOOL,
   resolveAllowedModel,
+  type ChatMessage,
   type ClientMessage,
   type ServerMessage,
 } from '@ai-chat/shared';
@@ -13,9 +16,18 @@ import { getChatStore } from '../store/chatStore.js';
 import { getAuthSessionStore } from '../auth/sessionStore.js';
 import { resolveBearerSession } from '../auth/resolveSession.js';
 import type { GenerationRunner } from '../generation/generationRunner.js';
+import { buildRagMessages } from '../rag/buildRagMessages.js';
+import { isKnowledgeBaseId } from '../rag/retrievalQuery.js';
+import {
+  RetrievalAbortedError,
+  lookupKnowledgeBaseForOwner,
+  retrieveForChat,
+  type RetrieveForChatResult,
+} from '../rag/retrieveForChat.js';
 
 const rateLimiter = new RateLimiter(10, 60_000);
 const MAX_CONTENT_LENGTH = 10_000;
+const pendingRetrievals = new Map<string, AbortController>();
 
 function sendMessage(ws: ConnectionState['ws'], message: ServerMessage): void {
   if (ws.readyState === ws.OPEN) {
@@ -73,6 +85,7 @@ function handleAuth(
 
   connection.authenticated = true;
   connection.sessionId = result.auth.sessionId;
+  connection.username = result.auth.username;
   manager.clearAuthDeadline(connection);
   logger.info('WS auth success', {
     connectionId: connection.connectionId,
@@ -94,9 +107,11 @@ function ensureAuthenticated(
   if (!session) {
     connection.authenticated = false;
     connection.sessionId = null;
+    connection.username = null;
     closeUnauthorized(connection, manager, '登录已过期，请重新登录');
     return false;
   }
+  connection.username = session.username;
   return true;
 }
 
@@ -159,13 +174,21 @@ function handleHello(
   // 无 conversationId → 解绑以开启空白新会话；不要创建空行
   if (!message.conversationId) {
     connection.conversationId = null;
-    sendMessage(connection.ws, { type: 'session', conversationId: null });
+    sendMessage(connection.ws, {
+      type: 'session',
+      conversationId: null,
+      scenario: DEFAULT_SCENARIO_ID,
+    });
     return;
   }
 
   const conversationId = store.ensureConversation(message.conversationId);
   connection.conversationId = conversationId;
-  sendMessage(connection.ws, { type: 'session', conversationId });
+  sendMessage(connection.ws, {
+    type: 'session',
+    conversationId,
+    scenario: DEFAULT_SCENARIO_ID,
+  });
 }
 
 function handleResume(
@@ -187,6 +210,7 @@ function handleResume(
   sendMessage(connection.ws, {
     type: 'session',
     conversationId: message.conversationId,
+    scenario: DEFAULT_SCENARIO_ID,
   });
 
   const generationId =
@@ -259,6 +283,22 @@ function handleStop(
   }
 
   connection.conversationId = message.conversationId;
+
+  const wasRetrieving = abortPendingRetrieval(message.generationId);
+  if (wasRetrieving) {
+    store.finalizeGeneration(message.generationId, 'cancelled', {
+      persistAssistant: false,
+    });
+    sendMessage(connection.ws, {
+      type: 'reply_end',
+      conversationId: message.conversationId,
+      generationId: message.generationId,
+      messageId: message.generationId,
+      content: '',
+      reason: 'cancelled',
+    });
+    return;
+  }
 
   if (generation.status !== 'running') {
     sendMessage(connection.ws, {
@@ -360,13 +400,77 @@ async function handleChatMessage(
     return;
   }
 
-  sendMessage(connection.ws, { type: 'session', conversationId });
+  sendMessage(connection.ws, {
+    type: 'session',
+    conversationId,
+    scenario: DEFAULT_SCENARIO_ID,
+  });
 
   store.appendMessage(conversationId, 'user', trimmedContent);
   const generationId = crypto.randomUUID();
   store.createGeneration(conversationId, generationId);
 
-  const llmMessages = store.listChatMessages(conversationId);
+  const ownerUsername = connection.username;
+  const boundId = await resolveBoundKnowledgeBaseId({
+    conversationId,
+    ownerUsername,
+    clientKnowledgeBaseId: message.knowledgeBaseId,
+  });
+
+  const retrieval = new AbortController();
+  pendingRetrievals.set(generationId, retrieval);
+  let ragResult: RetrieveForChatResult = { kind: 'unbound' };
+  try {
+    if (boundId && ownerUsername) {
+      sendToolEvent(connection, {
+        conversationId,
+        generationId,
+        event: 'start',
+      });
+      ragResult = await retrieveForChat({
+        ownerUsername,
+        knowledgeBaseId: boundId,
+        query: trimmedContent,
+        signal: retrieval.signal,
+      });
+      sendToolEvent(connection, {
+        conversationId,
+        generationId,
+        event: ragResult.kind === 'unavailable' ? 'error' : 'end',
+      });
+    }
+  } catch (error) {
+    if (
+      error instanceof RetrievalAbortedError ||
+      retrieval.signal.aborted
+    ) {
+      return;
+    }
+    logger.error('Chat retrieval failed', {
+      conversationId,
+      generationId,
+      error: error instanceof Error ? error.message : 'unknown',
+    });
+    ragResult = { kind: 'unavailable', kb: null };
+    sendToolEvent(connection, {
+      conversationId,
+      generationId,
+      event: 'error',
+    });
+  } finally {
+    pendingRetrievals.delete(generationId);
+  }
+
+  if (store.getGeneration(generationId)?.status !== 'running') {
+    return;
+  }
+
+  if (ragResult.kind === 'kb_missing') {
+    store.setConversationKnowledgeBaseId(conversationId, null);
+  }
+
+  const history = store.listChatMessages(conversationId);
+  const llmMessages = applyRagToHistory(history, ragResult);
 
   sendMessage(connection.ws, {
     type: 'reply_start',
@@ -387,5 +491,122 @@ async function handleChatMessage(
     conversationId,
     generationId,
     model: config.model,
+  });
+}
+
+function abortPendingRetrieval(generationId: string): boolean {
+  const controller = pendingRetrievals.get(generationId);
+  if (!controller) return false;
+  controller.abort();
+  pendingRetrievals.delete(generationId);
+  return true;
+}
+
+function sendToolEvent(
+  connection: ConnectionState,
+  params: {
+    conversationId: string;
+    generationId: string;
+    event: 'start' | 'end' | 'error';
+  },
+): void {
+  sendMessage(connection.ws, {
+    type: 'tool_event',
+    conversationId: params.conversationId,
+    generationId: params.generationId,
+    messageId: params.generationId,
+    event: params.event,
+    name: KNOWLEDGE_BASE_SEARCH_TOOL,
+  });
+}
+
+/**
+ * 以 SQLite 绑定为准；仅当库内为 NULL 时用客户端 id 懒绑定（须归属当前用户）。
+ */
+async function resolveBoundKnowledgeBaseId(input: {
+  conversationId: string;
+  ownerUsername: string | null;
+  clientKnowledgeBaseId?: string;
+}): Promise<string | null> {
+  const store = getChatStore();
+  const bound = store.getConversationKnowledgeBaseId(input.conversationId);
+  const client =
+    typeof input.clientKnowledgeBaseId === 'string'
+      ? input.clientKnowledgeBaseId.trim()
+      : '';
+
+  if (bound) {
+    if (client && client !== bound) {
+      logger.warn('client knowledgeBaseId ignored; conversation binding wins', {
+        conversationId: input.conversationId,
+      });
+    }
+    return bound;
+  }
+
+  if (!client || !input.ownerUsername || !isKnowledgeBaseId(client)) {
+    if (client && !isKnowledgeBaseId(client)) {
+      logger.warn('ignored invalid client knowledgeBaseId', {
+        conversationId: input.conversationId,
+      });
+    }
+    return null;
+  }
+
+  try {
+    const owned = await lookupKnowledgeBaseForOwner(client, input.ownerUsername);
+    if (!owned) {
+      logger.warn('ignored unowned client knowledgeBaseId', {
+        conversationId: input.conversationId,
+      });
+      return null;
+    }
+    store.setConversationKnowledgeBaseId(input.conversationId, client);
+    return client;
+  } catch (error) {
+    logger.warn('lazy bind knowledge base failed', {
+      conversationId: input.conversationId,
+      error: error instanceof Error ? error.message : 'unknown',
+    });
+    return null;
+  }
+}
+
+function applyRagToHistory(
+  history: ChatMessage[],
+  result: RetrieveForChatResult,
+): ChatMessage[] {
+  if (result.kind === 'unbound') {
+    return history;
+  }
+  if (result.kind === 'kb_missing') {
+    return buildRagMessages({
+      history,
+      kbName: '',
+      hits: [],
+      mode: 'kb_missing',
+    });
+  }
+  if (result.kind === 'unavailable') {
+    return buildRagMessages({
+      history,
+      kbName: result.kb?.name ?? '',
+      hits: [],
+      mode: 'unavailable',
+    });
+  }
+  if (result.kind === 'empty') {
+    return buildRagMessages({
+      history,
+      kbName: result.kb.name,
+      hits: [],
+      mode: 'empty',
+    });
+  }
+  return buildRagMessages({
+    history,
+    kbName: result.kb.name,
+    hits: result.hits,
+    mode: 'hits',
   });
 }

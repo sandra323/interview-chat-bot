@@ -12,6 +12,10 @@ interface HeaderProps {
   title?: string;
   model: string;
   onModelChange: (model: string) => void;
+  knowledgeBaseId: string | null;
+  knowledgeBaseOptions: { value: string; label: string }[];
+  onKnowledgeBaseChange: (id: string | null) => void;
+  knowledgeBaseDisabled?: boolean;
   onToggleSidebar: () => void;
   sidebarOpen?: boolean;
   onClearChat: () => void;
@@ -24,6 +28,10 @@ export default function Header({
   title,
   model,
   onModelChange,
+  knowledgeBaseId,
+  knowledgeBaseOptions,
+  onKnowledgeBaseChange,
+  knowledgeBaseDisabled = false,
   onToggleSidebar,
   sidebarOpen = true,
   onClearChat,
@@ -85,6 +93,18 @@ export default function Header({
 
         {showChatActions ? (
           <div className={styles.actions}>
+            <Select
+              value={knowledgeBaseId ?? ''}
+              onChange={(value) => onKnowledgeBaseChange(value || null)}
+              className={styles.kbSelect}
+              popupMatchSelectWidth={240}
+              disabled={knowledgeBaseDisabled}
+              options={[
+                { value: '', label: '不使用知识库' },
+                ...knowledgeBaseOptions,
+              ]}
+              aria-label="知识库"
+            />
             <Select
               value={model}
               onChange={onModelChange}

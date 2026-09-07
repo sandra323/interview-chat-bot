@@ -4,6 +4,9 @@ import { fileURLToPath } from 'node:url';
 import Database from 'better-sqlite3';
 import type { ChatMessage, ReplyEndReason } from '@ai-chat/shared';
 
+const UUID_RE =
+  /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const DEFAULT_DB_PATH = path.resolve(__dirname, '../../.data/chat.db');
 
@@ -29,6 +32,15 @@ export interface ConversationListItem {
   updatedAt: number;
   /** 该会话仍有生成任务在运行时为 true */
   generating: boolean;
+  /** 绑定的知识库；未启用 RAG 时为 null */
+  knowledgeBaseId: string | null;
+}
+
+/** 会话元数据，供 PATCH 响应与消息页回传 */
+export interface ConversationRecord {
+  id: string;
+  title: string | null;
+  knowledgeBaseId: string | null;
 }
 
 /** 持久化消息行，供客户端历史 API 使用 */
@@ -45,6 +57,7 @@ export interface MessagePageResult {
   pageSize: number;
   total: number;
   hasMore: boolean;
+  knowledgeBaseId: string | null;
 }
 
 export class ChatStore {
@@ -157,6 +170,7 @@ export class ChatStore {
            c.id AS id,
            c.updated_at AS updated_at,
            c.title AS custom_title,
+           c.knowledge_base_id AS knowledge_base_id,
            (
              SELECT m.content
              FROM messages m
@@ -184,6 +198,7 @@ export class ChatStore {
       id: string;
       updated_at: number;
       custom_title: string | null;
+      knowledge_base_id: string | null;
       first_user_message: string | null;
       generating: number;
     }>;
@@ -196,8 +211,52 @@ export class ChatStore {
         title: custom || raw || '新对话',
         updatedAt: row.updated_at,
         generating: Boolean(row.generating),
+        knowledgeBaseId: row.knowledge_base_id || null,
       };
     });
+  }
+
+  getConversation(conversationId: string): ConversationRecord | null {
+    const row = this.db
+      .prepare(
+        `SELECT id, title, knowledge_base_id AS knowledge_base_id
+         FROM conversations WHERE id = ?`,
+      )
+      .get(conversationId) as
+      | { id: string; title: string | null; knowledge_base_id: string | null }
+      | undefined;
+    if (!row) return null;
+    return {
+      id: row.id,
+      title: row.title,
+      knowledgeBaseId: row.knowledge_base_id || null,
+    };
+  }
+
+  /**
+   * 读取会话绑定的知识库。会话不存在时返回 null。
+   * 本方法不查 Postgres，归属校验由 HTTP/WS 编排层负责。
+   */
+  getConversationKnowledgeBaseId(conversationId: string): string | null {
+    return this.getConversation(conversationId)?.knowledgeBaseId ?? null;
+  }
+
+  /**
+   * 绑定或解绑知识库。null 写成 SQL NULL。
+   * 会话不存在或非 null 却不是 UUID 时返回 false。
+   */
+  setConversationKnowledgeBaseId(
+    conversationId: string,
+    knowledgeBaseId: string | null,
+  ): boolean {
+    if (!this.conversationExists(conversationId)) return false;
+    if (knowledgeBaseId !== null && !UUID_RE.test(knowledgeBaseId)) {
+      return false;
+    }
+    this.db
+      .prepare(`UPDATE conversations SET knowledge_base_id = ? WHERE id = ?`)
+      .run(knowledgeBaseId, conversationId);
+    return true;
   }
 
   /**
@@ -323,6 +382,7 @@ export class ChatStore {
       pageSize: safeSize,
       total,
       hasMore: offset + rows.length < total,
+      knowledgeBaseId: this.getConversationKnowledgeBaseId(conversationId),
     };
   }
 
