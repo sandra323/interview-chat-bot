@@ -47,10 +47,20 @@ function isBusy(status: KnowledgeDocument['status']): boolean {
   );
 }
 
-function progressLabel(status: KnowledgeDocument['status']): string | null {
+function progressHint(status: KnowledgeDocument['status']): string | null {
   if (status === 'queued') return '排队中';
+  if (status === 'uploading') return '上传中';
   if (status === 'pending' || status === 'processing') return '处理中';
   return null;
+}
+
+function formatProgress(
+  percent: number | undefined,
+  status: KnowledgeDocument['status'],
+): string {
+  const safe = Number.isFinite(percent) ? Math.round(percent!) : 0;
+  const hint = progressHint(status);
+  return hint ? `${hint} ${safe}%` : `${safe}%`;
 }
 
 export default function DocumentTable({
@@ -103,27 +113,21 @@ export default function DocumentTable({
         title: '上传进度',
         dataIndex: 'progress',
         width: '20%',
-        render: (_value, record) => {
-          const label = progressLabel(record.status);
-          return (
+        render: (_value, record) => (
           <div className={styles.progressCell}>
-            {label ? (
-              <span className={styles.queuedLabel}>{label}</span>
-            ) : (
-              <Progress
-                percent={record.progress}
-                size="small"
-                status={progressStatus(record.status)}
-              />
-            )}
+            <Progress
+              percent={record.progress}
+              size="small"
+              status={progressStatus(record.status)}
+              format={(pct) => formatProgress(pct, record.status)}
+            />
             {record.status === 'failed' ? (
               <Tooltip title={record.error?.trim() || '上传失败'}>
                 <InfoCircleOutlined className={styles.errorIcon} />
               </Tooltip>
             ) : null}
           </div>
-          );
-        },
+        ),
       },
       {
         title: '操作',

@@ -10,6 +10,7 @@ import {
 } from './chunkConfig.js';
 import {
   EmbedConfigError,
+  EmbedQuotaError,
   EmbedResponseError,
   EmbedUnavailableError,
 } from './ingestErrors.js';
@@ -106,9 +107,13 @@ async function requestBatchWithRetry(
     } catch (error) {
       if (
         error instanceof EmbedConfigError ||
-        error instanceof EmbedResponseError
+        error instanceof EmbedResponseError ||
+        error instanceof EmbedQuotaError
       ) {
         throw error;
+      }
+      if (isQuotaExhausted(error)) {
+        throw new EmbedQuotaError();
       }
       if (!isRetryable(error) || attempt === EMBED_MAX_RETRIES - 1) {
         throw error instanceof EmbedUnavailableError
@@ -136,11 +141,28 @@ async function requestOpenAIBatch(batch: string[]): Promise<number[][]> {
     });
     return response.data.map((item) => item.embedding);
   } catch (error) {
+    if (isQuotaExhausted(error)) {
+      throw new EmbedQuotaError();
+    }
     if (isRetryable(error)) {
       throw new EmbedUnavailableError(error);
     }
     throw new EmbedUnavailableError(error);
   }
+}
+
+function isQuotaExhausted(error: unknown): boolean {
+  if (typeof error !== 'object' || error === null) {
+    return false;
+  }
+  const record = error as { status?: unknown; code?: unknown; type?: unknown };
+  if (Number(record.status) === 429 && record.type === 'insufficient_quota') {
+    return true;
+  }
+  return (
+    record.code === 'insufficient_quota' ||
+    record.code === 'credit_balance_exhausted'
+  );
 }
 
 function assertEmbeddingBatch(
@@ -162,6 +184,9 @@ function assertEmbeddingBatch(
 }
 
 function isRetryable(error: unknown): boolean {
+  if (isQuotaExhausted(error)) {
+    return false;
+  }
   if (error instanceof EmbedUnavailableError) {
     return true;
   }

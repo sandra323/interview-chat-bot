@@ -49,6 +49,16 @@ export class EmbedUnavailableError extends Error {
   }
 }
 
+export class EmbedQuotaError extends Error {
+  readonly userMessage =
+    'OpenAI 账户余额不足，请充值后再上传资料（platform.openai.com 账单页）';
+
+  constructor() {
+    super('ingest-embed-quota-exhausted');
+    this.name = 'EmbedQuotaError';
+  }
+}
+
 export class EmbedResponseError extends Error {
   readonly userMessage = '向量服务返回异常，请稍后重试';
 
@@ -79,6 +89,7 @@ export function userMessageForIngestError(error: unknown): string {
     error instanceof ChunkEmptyError ||
     error instanceof ChunkTooLongError ||
     error instanceof EmbedConfigError ||
+    error instanceof EmbedQuotaError ||
     error instanceof EmbedUnavailableError ||
     error instanceof EmbedResponseError ||
     error instanceof PersistError

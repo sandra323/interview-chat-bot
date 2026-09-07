@@ -45,6 +45,21 @@ describe('embedTextsWithRequester', () => {
     expect(vectors).toHaveLength(1);
   });
 
+  it('maps quota exhaustion to EmbedQuotaError', async () => {
+    await expect(
+      embedTextsWithRequester(['hello'], async () => {
+        throw Object.assign(new Error('quota'), {
+          status: 429,
+          code: 'insufficient_quota',
+          type: 'insufficient_quota',
+        });
+      }),
+    ).rejects.toMatchObject({
+      name: 'EmbedQuotaError',
+      userMessage: expect.stringMatching(/余额不足/),
+    });
+  });
+
   it('maps timeout to unavailable after retries', async () => {
     await expect(
       embedTextsWithRequester(['hello'], async () => {
