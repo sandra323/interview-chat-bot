@@ -3,6 +3,7 @@ import { getFileStorage } from './fileStorage.js';
 import { validateUpload } from './validateUpload.js';
 import { sha256Hex } from '../rag/contentHash.js';
 import {
+  findByFilenameInKnowledgeBase,
   findByHashInKnowledgeBase,
   insert,
   toPublicDocument,
@@ -34,16 +35,28 @@ export async function ingestFile(input: {
     return validated;
   }
 
+  const sameName = await findByFilenameInKnowledgeBase(
+    input.ownerUsername,
+    input.knowledgeBaseId,
+    validated.value.filename,
+  );
+  if (sameName) {
+    return {
+      ok: false,
+      msg: duplicateNameMsg(sameName.filename),
+    };
+  }
+
   const contentHash = sha256Hex(input.buffer);
-  const duplicate = await findByHashInKnowledgeBase(
+  const sameContent = await findByHashInKnowledgeBase(
     input.ownerUsername,
     input.knowledgeBaseId,
     contentHash,
   );
-  if (duplicate) {
+  if (sameContent) {
     return {
       ok: false,
-      msg: `资料库里已有相同文件「${duplicate.filename}」`,
+      msg: duplicateContentMsg(sameContent.filename),
     };
   }
 
@@ -85,20 +98,34 @@ export async function ingestFile(input: {
   } catch (error) {
     storage.remove(relativePath);
     if (isUniqueViolation(error)) {
-      const existing = await findByHashInKnowledgeBase(
+      const existingName = await findByFilenameInKnowledgeBase(
+        input.ownerUsername,
+        input.knowledgeBaseId,
+        validated.value.filename,
+      );
+      if (existingName) {
+        return { ok: false, msg: duplicateNameMsg(existingName.filename) };
+      }
+      const existingHash = await findByHashInKnowledgeBase(
         input.ownerUsername,
         input.knowledgeBaseId,
         contentHash,
       );
-      return {
-        ok: false,
-        msg: existing
-          ? `资料库里已有相同文件「${existing.filename}」`
-          : '资料库里已有相同文件',
-      };
+      if (existingHash) {
+        return { ok: false, msg: duplicateContentMsg(existingHash.filename) };
+      }
+      return { ok: false, msg: '资料库里已有相同文件' };
     }
     return { ok: false, msg: '哎呀，上传失败了，请稍后重试' };
   }
+}
+
+function duplicateNameMsg(filename: string): string {
+  return `资料库里已有同名文件「${filename}」`;
+}
+
+function duplicateContentMsg(filename: string): string {
+  return `资料库里已有相同内容的文件「${filename}」`;
 }
 
 function isUniqueViolation(error: unknown): boolean {

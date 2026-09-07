@@ -88,6 +88,10 @@ async function clientValidate(file: File): Promise<string | null> {
   return null;
 }
 
+function isDuplicateUploadMessage(msg: string): boolean {
+  return /同名文件|相同内容的文件|已有相同文件/.test(msg);
+}
+
 function matchesQuery(filename: string, query: string): boolean {
   if (!query) return true;
   return filename.toLowerCase().includes(query.toLowerCase());
@@ -190,9 +194,15 @@ export default function KnowledgeBase() {
           setTotal((count) => count + 1);
         })
         .catch((err: unknown) => {
+          const msg = userFacingApiMessage(err, '哎呀，上传失败了，请稍后重试');
+          if (isDuplicateUploadMessage(msg)) {
+            message.warning(msg);
+            setLocalDocs((prev) => prev.filter((doc) => doc.id !== job.localId));
+            return;
+          }
           patchLocal(job.localId, {
             status: 'failed',
-            error: userFacingApiMessage(err, '哎呀，上传失败了，请稍后重试'),
+            error: msg,
           });
         })
         .finally(() => {
@@ -200,7 +210,7 @@ export default function KnowledgeBase() {
           pumpUploads();
         });
     }
-  }, [patchLocal]);
+  }, [message, patchLocal]);
 
   const handleFilesSelected = useCallback(
     (fileList: FileList) => {

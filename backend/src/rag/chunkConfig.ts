@@ -20,6 +20,22 @@ export const DEFAULT_EMBEDDING_MODEL = 'text-embedding-3-small';
 export const DEFAULT_EMBEDDING_MODEL_VERSION =
   'text-embedding-3-small@2024-01-25';
 
+/** 向量粗召 Top-K。Phase 9 Retrieval Benchmark 再调。 */
+export const VECTOR_TOP_K = 20;
+/** 防止误传超大 k 扫全表 */
+export const VECTOR_MAX_K = 100;
+
+/** 缺省 20；k<=0 视为不检索；超过 VECTOR_MAX_K 则钳制。 */
+export function resolveVectorTopK(k?: number): number {
+  if (k === undefined) {
+    return VECTOR_TOP_K;
+  }
+  if (!Number.isFinite(k) || k <= 0) {
+    return 0;
+  }
+  return Math.min(Math.floor(k), VECTOR_MAX_K);
+}
+
 export const INGEST_PROGRESS = {
   started: 10,
   parsed: 30,

@@ -314,6 +314,24 @@ export async function updateStatus(
   return row ? mapRow(row) : null;
 }
 
+export async function findByFilenameInKnowledgeBase(
+  ownerUsername: string,
+  knowledgeBaseId: string,
+  filename: string,
+): Promise<PgDocumentRow | null> {
+  const result = await getPool().query<DocumentDbRow>(
+    `SELECT * FROM documents
+     WHERE owner_username = $1
+       AND knowledge_base_id = $2
+       AND lower(filename) = lower($3)
+     ORDER BY created_at ASC
+     LIMIT 1`,
+    [ownerUsername, knowledgeBaseId, filename],
+  );
+  const row = result.rows[0];
+  return row ? mapRow(row) : null;
+}
+
 export async function findByHashInKnowledgeBase(
   ownerUsername: string,
   knowledgeBaseId: string,

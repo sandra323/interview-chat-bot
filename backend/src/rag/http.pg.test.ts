@@ -255,7 +255,43 @@ describe.skipIf(!testDatabaseUrl)('KB + documents HTTP with PostgreSQL', () => {
     );
     const dupBody = (await dupRes.json()) as { msg: string };
     expect(dupRes.status).toBe(400);
-    expect(dupBody.msg).toMatch(/相同文件/);
+    expect(dupBody.msg).toMatch(/相同内容的文件「指南\.md」/);
+
+    const sameNameForm = new FormData();
+    sameNameForm.append(
+      'file',
+      new Blob(['# different body'], { type: 'text/markdown' }),
+      '指南.md',
+    );
+    const sameNameRes = await fetch(
+      `${baseUrl}/api/knowledge-bases/${kbId}/documents`,
+      {
+        method: 'POST',
+        headers: { Authorization: `Bearer ${token}` },
+        body: sameNameForm,
+      },
+    );
+    const sameNameBody = (await sameNameRes.json()) as { msg: string };
+    expect(sameNameRes.status).toBe(400);
+    expect(sameNameBody.msg).toMatch(/同名文件「指南\.md」/);
+
+    const caseForm = new FormData();
+    caseForm.append(
+      'file',
+      new Blob(['# another body'], { type: 'text/markdown' }),
+      '指南.MD',
+    );
+    const caseRes = await fetch(
+      `${baseUrl}/api/knowledge-bases/${kbId}/documents`,
+      {
+        method: 'POST',
+        headers: { Authorization: `Bearer ${token}` },
+        body: caseForm,
+      },
+    );
+    const caseBody = (await caseRes.json()) as { msg: string };
+    expect(caseRes.status).toBe(400);
+    expect(caseBody.msg).toMatch(/同名文件/);
   });
 
   it('POST /api/documents uses the default knowledge base', async () => {
