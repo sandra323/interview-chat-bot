@@ -45,6 +45,7 @@ describe('resolveBearerSession', () => {
     expect(resolveBearerSession(null)).toEqual({
       ok: false,
       msg: '请先登录',
+      reason: 'missing_token',
     });
   });
 
@@ -71,6 +72,7 @@ describe('resolveBearerSession', () => {
     expect(result).toEqual({
       ok: false,
       msg: '登录已过期，请重新登录',
+      reason: 'expired',
     });
   });
 
@@ -82,6 +84,16 @@ describe('resolveBearerSession', () => {
     expect(resolveBearerSession(created.token, now + 2)).toEqual({
       ok: false,
       msg: '登录已过期，请重新登录',
+      reason: 'expired',
+    });
+  });
+
+  it('returns invalid_token for unknown bearer', () => {
+    setup();
+    expect(resolveBearerSession('not-a-real-token')).toEqual({
+      ok: false,
+      msg: '请先登录',
+      reason: 'invalid_token',
     });
   });
 });

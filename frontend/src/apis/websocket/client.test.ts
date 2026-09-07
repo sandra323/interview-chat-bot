@@ -90,6 +90,24 @@ describe('WebSocketClient auth handshake', () => {
     expect(client.send({ type: 'hello' })).toBe(true);
   });
 
+  it('fails auth when session expired locally and does not reconnect', async () => {
+    installFake();
+    const onAuthFailure = vi.fn();
+    const client = new WebSocketClient('ws://test/ws', {
+      getAuthToken: () => 'tok-1',
+      isSessionValid: () => false,
+      onAuthFailure,
+    });
+    client.connect();
+    await vi.waitFor(() => expect(FakeWebSocket.instances.length).toBe(1));
+    const socket = FakeWebSocket.instances[0];
+    socket.emitMessage({ type: 'connected', connectionId: 'c1' });
+
+    expect(onAuthFailure).toHaveBeenCalledWith('expired');
+    expect(socket.sent).toEqual([]);
+    expect(client.getStatus()).toBe('closed');
+  });
+
   it('fails auth without token and does not reconnect', async () => {
     installFake();
     const onAuthFailure = vi.fn();

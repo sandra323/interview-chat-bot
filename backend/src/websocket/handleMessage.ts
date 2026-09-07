@@ -65,7 +65,7 @@ function handleAuth(
   if (!result.ok) {
     logger.warn('WS auth failed', {
       connectionId: connection.connectionId,
-      reason: 'credentials',
+      reason: result.reason,
     });
     closeUnauthorized(connection, manager, result.msg);
     return;

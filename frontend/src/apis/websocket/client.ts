@@ -3,6 +3,8 @@ import { parseServerMessage, serializeClientMessage } from './messageParser';
 
 export type WebSocketStatus = 'connecting' | 'open' | 'closed';
 
+export type AuthFailureReason = 'missing_token' | 'unauthorized' | 'expired';
+
 export type MessageHandler = (data: string) => void;
 export type StatusHandler = (status: WebSocketStatus) => void;
 
@@ -12,8 +14,13 @@ export interface WebSocketClientOptions {
    * 除非 `skipAuth` 为 true，否则必填。
    */
   getAuthToken?: () => string | null | undefined;
-  /** 鉴权失败时回调（缺少 token、UNAUTHORIZED 等）。 */
-  onAuthFailure?: (reason: 'missing_token' | 'unauthorized') => void;
+  /** 鉴权失败时回调（缺少 token、会话过期、UNAUTHORIZED 等）。 */
+  onAuthFailure?: (reason: AuthFailureReason) => void;
+  /**
+   * 在发送 `{ type: 'auth' }` 前校验本地会话是否仍有效（如 expiresAt）。
+   * 返回 false 时不发 auth，并触发 onAuthFailure('expired')。
+   */
+  isSessionValid?: () => boolean;
   /**
    * 跳过 WS 鉴权握手（仅 UI / 测试）。勿用于受保护 backend。
    */
@@ -151,6 +158,10 @@ export class WebSocketClient {
     }
 
     if (message.type === 'connected') {
+      if (this.options.isSessionValid && !this.options.isSessionValid()) {
+        this.failAuth('expired');
+        return;
+      }
       const token = this.options.getAuthToken?.()?.trim() ?? '';
       if (!token) {
         this.failAuth('missing_token');
@@ -171,7 +182,7 @@ export class WebSocketClient {
     }
   }
 
-  private failAuth(reason: 'missing_token' | 'unauthorized'): void {
+  private failAuth(reason: AuthFailureReason): void {
     this.manualClose = true;
     this.clearReconnectTimer();
     this.teardownSocket();

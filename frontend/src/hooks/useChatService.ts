@@ -797,15 +797,19 @@ function useRealChatService() {
   useEffect(() => {
     const client = new WebSocketClient(getWebSocketUrl(), {
       getAuthToken: () => useAuthStore.getState().token,
+      isSessionValid: () => {
+        const { expiresAt } = useAuthStore.getState();
+        return expiresAt == null || expiresAt > Date.now();
+      },
       onAuthFailure: (reason) => {
         useAuthStore.getState().forceLogoutLocal({ reason: 'unauthorized' });
-        useChatStore
-          .getState()
-          .setError(
-            reason === 'missing_token'
-              ? '请先登录'
+        useChatStore.getState().setError(
+          reason === 'missing_token'
+            ? '请先登录'
+            : reason === 'expired'
+              ? '登录已过期，请重新登录'
               : '登录已失效，请重新登录',
-          );
+        );
       },
       // USE_MOCK 使用独立 mock 服务 —— 连接真实 backend 时不应进入此分支。
       skipAuth: false,
