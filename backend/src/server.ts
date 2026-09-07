@@ -18,8 +18,10 @@ import { logger } from './utils/logger.js';
 import type { ServerEnv } from './config/env.js';
 import { ApiCode } from '@ai-chat/shared';
 import { createDocumentsRouter } from './documents/routes.js';
+import { createKnowledgeBasesRouter } from './knowledge-bases/routes.js';
 import { getDocumentStore } from './documents/documentStore.js';
 import { getFileStorage } from './documents/fileStorage.js';
+import { closePool } from './rag/pg.js';
 
 export function createApp(env: ServerEnv): express.Application {
   const app = express();
@@ -198,7 +200,9 @@ export function createApp(env: ServerEnv): express.Application {
   });
 
   app.use('/api/conversations', conversations);
-  app.use('/api/documents', createDocumentsRouter());
+  const pgEnabled = Boolean(env.databaseUrl);
+  app.use('/api/documents', createDocumentsRouter(pgEnabled));
+  app.use('/api/knowledge-bases', createKnowledgeBasesRouter(pgEnabled));
   return app;
 }
 
@@ -314,6 +318,10 @@ export function setupGracefulShutdown(
     } catch {
       // 忽略
     }
+
+    void closePool().catch(() => {
+      // 忽略
+    });
 
     server.close(() => {
       logger.info('Server closed');

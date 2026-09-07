@@ -13,7 +13,7 @@ import { resetDocumentStoreForTests } from './documentStore.js';
 import { resetFileStorageForTests } from './fileStorage.js';
 import type { ServerEnv } from '../config/env.js';
 
-describe('documents HTTP routes', () => {
+describe('documents HTTP routes without PostgreSQL', () => {
   const paths: string[] = [];
   const dirs: string[] = [];
   let server: Server | null = null;
@@ -50,6 +50,7 @@ describe('documents HTTP routes', () => {
       authUsername: 'demo',
       authPasswordHash: passwordHash,
       authSessionTtlHours: 24,
+      databaseUrl: '',
     };
 
     const app = createApp(env);
@@ -105,125 +106,32 @@ describe('documents HTTP routes', () => {
     expect(body.code).toBe(ApiCode.UNAUTHORIZED);
   });
 
-  it('uploads markdown, lists with search, and returns content', async () => {
+  it('returns 503 when knowledge base storage is not configured', async () => {
     const token = await login();
+    const listRes = await fetch(`${baseUrl}/api/documents`, {
+      headers: { Authorization: `Bearer ${token}` },
+    });
+    const listBody = (await listRes.json()) as { code: number; msg: string };
+    expect(listRes.status).toBe(503);
+    expect(listBody.code).toBe(ApiCode.INTERNAL_ERROR);
+    expect(listBody.msg).toMatch(/知识库服务未启用/);
+
     const form = new FormData();
     form.append(
       'file',
       new Blob(['# hello'], { type: 'text/markdown' }),
       '指南.md',
     );
-
     const uploadRes = await fetch(`${baseUrl}/api/documents`, {
       method: 'POST',
       headers: { Authorization: `Bearer ${token}` },
       body: form,
     });
-    const uploadBody = (await uploadRes.json()) as {
-      code: number;
-      data: { id: string; filename: string; status: string; progress: number };
-    };
-    expect(uploadRes.status).toBe(200);
-    expect(uploadBody.code).toBe(ApiCode.SUCCESS);
-    expect(uploadBody.data.filename).toBe('指南.md');
-    expect(uploadBody.data.status).toBe('ready');
-    expect(uploadBody.data.progress).toBe(100);
+    expect(uploadRes.status).toBe(503);
 
-    const listRes = await fetch(
-      `${baseUrl}/api/documents?q=${encodeURIComponent('指南')}&page=1&pageSize=10`,
-      { headers: { Authorization: `Bearer ${token}` } },
-    );
-    const listBody = (await listRes.json()) as {
-      data: { items: Array<{ id: string }>; total: number; pageSize: number };
-    };
-    expect(listBody.data.total).toBe(1);
-    expect(listBody.data.pageSize).toBe(10);
-    expect(listBody.data.items[0]?.id).toBe(uploadBody.data.id);
-
-    const contentRes = await fetch(
-      `${baseUrl}/api/documents/${uploadBody.data.id}/content`,
-      { headers: { Authorization: `Bearer ${token}` } },
-    );
-    expect(contentRes.status).toBe(200);
-    expect(contentRes.headers.get('content-type')).toMatch(/markdown/);
-    expect(await contentRes.text()).toBe('# hello');
-  });
-
-  it('deletes an uploaded file and its content', async () => {
-    const token = await login();
-    const form = new FormData();
-    form.append(
-      'file',
-      new Blob(['# bye'], { type: 'text/markdown' }),
-      'remove.md',
-    );
-    const uploadRes = await fetch(`${baseUrl}/api/documents`, {
-      method: 'POST',
-      headers: { Authorization: `Bearer ${token}` },
-      body: form,
-    });
-    const id = (
-      (await uploadRes.json()) as { data: { id: string } }
-    ).data.id;
-
-    const delRes = await fetch(`${baseUrl}/api/documents/${id}`, {
-      method: 'DELETE',
+    const kbRes = await fetch(`${baseUrl}/api/knowledge-bases`, {
       headers: { Authorization: `Bearer ${token}` },
     });
-    const delBody = (await delRes.json()) as {
-      code: number;
-      data: { id: string };
-    };
-    expect(delRes.status).toBe(200);
-    expect(delBody.code).toBe(ApiCode.SUCCESS);
-    expect(delBody.data.id).toBe(id);
-
-    const listRes = await fetch(`${baseUrl}/api/documents`, {
-      headers: { Authorization: `Bearer ${token}` },
-    });
-    const listBody = (await listRes.json()) as { data: { total: number } };
-    expect(listBody.data.total).toBe(0);
-
-    const contentRes = await fetch(`${baseUrl}/api/documents/${id}/content`, {
-      headers: { Authorization: `Bearer ${token}` },
-    });
-    expect(contentRes.status).toBe(404);
-  });
-
-  it('rejects unsupported file types', async () => {
-    const token = await login();
-    const form = new FormData();
-    form.append(
-      'file',
-      new Blob(['png'], { type: 'image/png' }),
-      'photo.png',
-    );
-    const res = await fetch(`${baseUrl}/api/documents`, {
-      method: 'POST',
-      headers: { Authorization: `Bearer ${token}` },
-      body: form,
-    });
-    const body = (await res.json()) as { code: number; msg: string };
-    expect(res.status).toBe(400);
-    expect(body.code).toBe(ApiCode.BAD_REQUEST);
-    expect(body.msg).toMatch(/PDF|Markdown/);
-  });
-
-  it('rejects a non-pdf disguised as pdf', async () => {
-    const token = await login();
-    const form = new FormData();
-    form.append(
-      'file',
-      new Blob(['not-a-pdf'], { type: 'application/pdf' }),
-      'fake.pdf',
-    );
-    const res = await fetch(`${baseUrl}/api/documents`, {
-      method: 'POST',
-      headers: { Authorization: `Bearer ${token}` },
-      body: form,
-    });
-    const body = (await res.json()) as { code: number; msg: string };
-    expect(res.status).toBe(400);
-    expect(body.msg).toMatch(/PDF/);
+    expect(kbRes.status).toBe(503);
   });
 });

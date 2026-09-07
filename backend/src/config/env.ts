@@ -39,6 +39,11 @@ export interface ServerEnv {
   authPasswordHash: string;
   /** 会话绝对 TTL，单位小时（环境变量 AUTH_SESSION_TTL_HOURS，默认 24）。 */
   authSessionTtlHours: number;
+  /**
+   * PostgreSQL 连接串（环境变量 DATABASE_URL）。
+   * 为空则跳过 RAG/pgvector 初始化，现有 Chat/资料库仍可用。
+   */
+  databaseUrl: string;
 }
 
 export function readServerEnv(): ServerEnv {
@@ -67,6 +72,7 @@ export function readServerEnv(): ServerEnv {
     authUsername: process.env.AUTH_USERNAME?.trim() ?? '',
     authPasswordHash: process.env.AUTH_PASSWORD_HASH?.trim() ?? '',
     authSessionTtlHours: ttlParsed,
+    databaseUrl: process.env.DATABASE_URL?.trim() ?? '',
   };
 }
 

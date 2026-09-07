@@ -1,18 +1,17 @@
 import { Router } from 'express';
-import multer from 'multer';
-import { ApiCode, DOCUMENT_MAX_BYTES, DOCUMENT_PAGE_SIZE } from '@ai-chat/shared';
+import { ApiCode, DOCUMENT_PAGE_SIZE } from '@ai-chat/shared';
 import { requireAuth } from '../auth/middleware.js';
 import { sendFail, sendSuccess } from '../http/apiResponse.js';
 import { logger } from '../utils/logger.js';
-import { getDocumentStore } from './documentStore.js';
 import { getFileStorage } from './fileStorage.js';
 import { ingestFile } from './ingestFile.js';
-
-const upload = multer({
-  storage: multer.memoryStorage(),
-  limits: { fileSize: DOCUMENT_MAX_BYTES, files: 1 },
-  defParamCharset: 'utf8',
-});
+import { handleMultipartUpload, routeParam, sendPgUnavailable } from './multerUpload.js';
+import { getOrCreateDefaultForOwner } from '../rag/knowledgeBaseStore.js';
+import {
+  deleteByIdForOwner,
+  getByIdForOwner,
+  listPageForOwner,
+} from '../rag/pgDocumentStore.js';
 
 function contentDispositionInline(filename: string): string {
   const asciiFallback =
@@ -21,12 +20,17 @@ function contentDispositionInline(filename: string): string {
   return `inline; filename="${asciiFallback}"; filename*=UTF-8''${encoded}`;
 }
 
-export function createDocumentsRouter(): Router {
+export function createDocumentsRouter(pgEnabled: boolean): Router {
   const router = Router();
   router.use(requireAuth);
 
-  router.get('/', (req, res) => {
+  router.get('/', async (req, res) => {
     try {
+      if (!pgEnabled) {
+        sendPgUnavailable(res);
+        return;
+      }
+
       const ownerUsername = req.auth?.username;
       if (!ownerUsername) {
         sendFail(res, {
@@ -56,7 +60,7 @@ export function createDocumentsRouter(): Router {
       }
 
       const q = typeof req.query.q === 'string' ? req.query.q : '';
-      const result = getDocumentStore().listPage(ownerUsername, {
+      const result = await listPageForOwner(ownerUsername, {
         q,
         page,
         pageSize,
@@ -73,31 +77,13 @@ export function createDocumentsRouter(): Router {
     }
   });
 
-  router.post('/', (req, res, next) => {
-    upload.single('file')(req, res, (err: unknown) => {
-      if (err instanceof multer.MulterError && err.code === 'LIMIT_FILE_SIZE') {
-        sendFail(res, {
-          code: ApiCode.BAD_REQUEST,
-          msg: '哎呀，文件太大了，请上传 20MB 以内的文件',
-          httpStatus: 400,
-        });
-        return;
-      }
-      if (err) {
-        logger.error('Document upload multer error', {
-          error: err instanceof Error ? err.message : 'Unknown error',
-        });
-        sendFail(res, {
-          code: ApiCode.BAD_REQUEST,
-          msg: '哎呀，上传失败了，请稍后重试',
-          httpStatus: 400,
-        });
-        return;
-      }
-      next();
-    });
-  }, (req, res) => {
+  router.post('/', handleMultipartUpload, async (req, res) => {
     try {
+      if (!pgEnabled) {
+        sendPgUnavailable(res);
+        return;
+      }
+
       const ownerUsername = req.auth?.username;
       if (!ownerUsername) {
         sendFail(res, {
@@ -117,8 +103,10 @@ export function createDocumentsRouter(): Router {
         return;
       }
 
-      const result = ingestFile({
+      const kb = await getOrCreateDefaultForOwner(ownerUsername);
+      const result = await ingestFile({
         ownerUsername,
+        knowledgeBaseId: kb.id,
         originalName: file.originalname,
         mimeType: file.mimetype,
         buffer: file.buffer,
@@ -144,8 +132,13 @@ export function createDocumentsRouter(): Router {
     }
   });
 
-  router.get('/:id/content', (req, res) => {
+  router.get('/:id/content', async (req, res) => {
     try {
+      if (!pgEnabled) {
+        sendPgUnavailable(res);
+        return;
+      }
+
       const ownerUsername = req.auth?.username;
       if (!ownerUsername) {
         sendFail(res, {
@@ -155,10 +148,7 @@ export function createDocumentsRouter(): Router {
         return;
       }
 
-      const doc = getDocumentStore().getByIdForOwner(
-        req.params.id,
-        ownerUsername,
-      );
+      const doc = await getByIdForOwner(routeParam(req, 'id'), ownerUsername);
       if (!doc || doc.status !== 'ready') {
         sendFail(res, {
           code: ApiCode.NOT_FOUND,
@@ -195,8 +185,13 @@ export function createDocumentsRouter(): Router {
     }
   });
 
-  router.delete('/:id', (req, res) => {
+  router.delete('/:id', async (req, res) => {
     try {
+      if (!pgEnabled) {
+        sendPgUnavailable(res);
+        return;
+      }
+
       const ownerUsername = req.auth?.username;
       if (!ownerUsername) {
         sendFail(res, {
@@ -206,10 +201,7 @@ export function createDocumentsRouter(): Router {
         return;
       }
 
-      const deleted = getDocumentStore().deleteByIdForOwner(
-        req.params.id,
-        ownerUsername,
-      );
+      const deleted = await deleteByIdForOwner(routeParam(req, 'id'), ownerUsername);
       if (!deleted) {
         sendFail(res, {
           code: ApiCode.NOT_FOUND,

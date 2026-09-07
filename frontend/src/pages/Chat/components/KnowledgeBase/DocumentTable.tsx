@@ -20,6 +20,7 @@ interface DocumentTableProps {
   onPageChange: (page: number) => void;
   onPreview: (doc: KnowledgeDocument) => void;
   onDelete: (doc: KnowledgeDocument) => void;
+  onReprocess: (doc: KnowledgeDocument) => void;
 }
 
 function progressStatus(
@@ -27,12 +28,29 @@ function progressStatus(
 ): 'active' | 'success' | 'exception' | 'normal' {
   if (status === 'failed') return 'exception';
   if (status === 'ready') return 'success';
-  if (status === 'uploading') return 'active';
+  if (
+    status === 'uploading' ||
+    status === 'pending' ||
+    status === 'processing'
+  ) {
+    return 'active';
+  }
   return 'normal';
 }
 
 function isBusy(status: KnowledgeDocument['status']): boolean {
-  return status === 'queued' || status === 'uploading';
+  return (
+    status === 'queued' ||
+    status === 'uploading' ||
+    status === 'pending' ||
+    status === 'processing'
+  );
+}
+
+function progressLabel(status: KnowledgeDocument['status']): string | null {
+  if (status === 'queued') return '排队中';
+  if (status === 'pending' || status === 'processing') return '处理中';
+  return null;
 }
 
 export default function DocumentTable({
@@ -46,6 +64,7 @@ export default function DocumentTable({
   onPageChange,
   onPreview,
   onDelete,
+  onReprocess,
 }: DocumentTableProps) {
   const columns: TableColumnsType<KnowledgeDocument> = useMemo(
     () => [
@@ -84,10 +103,12 @@ export default function DocumentTable({
         title: '上传进度',
         dataIndex: 'progress',
         width: '20%',
-        render: (_value, record) => (
+        render: (_value, record) => {
+          const label = progressLabel(record.status);
+          return (
           <div className={styles.progressCell}>
-            {record.status === 'queued' ? (
-              <span className={styles.queuedLabel}>排队中</span>
+            {label ? (
+              <span className={styles.queuedLabel}>{label}</span>
             ) : (
               <Progress
                 percent={record.progress}
@@ -101,25 +122,37 @@ export default function DocumentTable({
               </Tooltip>
             ) : null}
           </div>
-        ),
+          );
+        },
       },
       {
         title: '操作',
         key: 'actions',
-        width: '15%',
+        width: '18%',
         render: (_value, record) => (
-          <Button
-            type="link"
-            className={styles.actionLink}
-            disabled={isBusy(record.status)}
-            onClick={() => onDelete(record)}
-          >
-            删除
-          </Button>
+          <div className={styles.actions}>
+            {record.status === 'failed' ? (
+              <Button
+                type="link"
+                className={styles.actionLink}
+                onClick={() => onReprocess(record)}
+              >
+                重新处理
+              </Button>
+            ) : null}
+            <Button
+              type="link"
+              className={styles.actionLink}
+              disabled={isBusy(record.status)}
+              onClick={() => onDelete(record)}
+            >
+              删除
+            </Button>
+          </div>
         ),
       },
     ],
-    [onDelete, onPreview],
+    [onDelete, onPreview, onReprocess],
   );
 
   return (

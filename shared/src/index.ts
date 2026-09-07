@@ -20,6 +20,7 @@ export type { ApiResponse, ApiCodeValue } from './types/api.js';
 export { ApiCode } from './types/api.js';
 export type {
   DocumentStatus,
+  KnowledgeBase,
   KnowledgeDocument,
   KnowledgeDocumentPage,
 } from './types/document.js';
@@ -28,6 +29,7 @@ export {
   DOCUMENT_MAX_BYTES,
   DOCUMENT_PAGE_SIZE,
   DOCUMENT_FILE_ACCEPT,
+  DEFAULT_KNOWLEDGE_BASE_NAME,
 } from './types/document.js';
 export {
   DEFAULT_LLM_TIMEOUT_MS,

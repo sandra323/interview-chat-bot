@@ -36,6 +36,7 @@ describe('conversation HTTP requireAuth', () => {
       authUsername: 'demo',
       authPasswordHash: passwordHash,
       authSessionTtlHours: 24,
+      databaseUrl: '',
     };
 
     const app = createApp(env);

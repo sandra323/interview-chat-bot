@@ -20,6 +20,7 @@ function baseEnv(overrides: Partial<ServerEnv> = {}): ServerEnv {
     authUsername: 'demo',
     authPasswordHash: SAMPLE_HASH,
     authSessionTtlHours: 24,
+    databaseUrl: '',
     ...overrides,
   };
 }

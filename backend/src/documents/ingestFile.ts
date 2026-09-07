@@ -1,23 +1,29 @@
 import type { KnowledgeDocument } from '@ai-chat/shared';
-import { getDocumentStore } from './documentStore.js';
 import { getFileStorage } from './fileStorage.js';
 import { validateUpload } from './validateUpload.js';
+import { sha256Hex } from '../rag/contentHash.js';
+import {
+  findByHashInKnowledgeBase,
+  insert,
+  toPublicDocument,
+} from '../rag/pgDocumentStore.js';
+import { enqueueParse } from '../rag/parseWorker.js';
 
 export type IngestFileResult =
   | { ok: true; document: KnowledgeDocument }
   | { ok: false; msg: string };
 
 /**
- * 将单个文件落入当前用户的资料库。
- * 后续文件夹上传应对目录内每个文件调用本函数（表格仍按文件展示）。
+ * 将单个文件落入指定知识库：落盘后立即返回 pending，解析在进程内异步进行。
  */
-export function ingestFile(input: {
+export async function ingestFile(input: {
   ownerUsername: string;
+  knowledgeBaseId: string;
   originalName: string;
   mimeType: string;
   buffer: Buffer;
   sourceRelativePath?: string | null;
-}): IngestFileResult {
+}): Promise<IngestFileResult> {
   const validated = validateUpload({
     originalName: input.originalName,
     mimeType: input.mimeType,
@@ -26,6 +32,19 @@ export function ingestFile(input: {
   });
   if (!validated.ok) {
     return validated;
+  }
+
+  const contentHash = sha256Hex(input.buffer);
+  const duplicate = await findByHashInKnowledgeBase(
+    input.ownerUsername,
+    input.knowledgeBaseId,
+    contentHash,
+  );
+  if (duplicate) {
+    return {
+      ok: false,
+      msg: `资料库里已有相同文件「${duplicate.filename}」`,
+    };
   }
 
   const id = crypto.randomUUID();
@@ -43,22 +62,50 @@ export function ingestFile(input: {
   }
 
   try {
-    const document = getDocumentStore().insert({
+    const row = await insert({
       id,
+      knowledgeBaseId: input.knowledgeBaseId,
       ownerUsername: input.ownerUsername,
       filename: validated.value.filename,
       mimeType: validated.value.mimeType,
       sizeBytes: input.buffer.byteLength,
       storagePath: relativePath,
-      status: 'ready',
-      progress: 100,
+      contentHash,
+      status: 'pending',
+      progress: 0,
       error: null,
-      createdAt: Date.now(),
       sourceRelativePath: input.sourceRelativePath ?? null,
     });
-    return { ok: true, document };
-  } catch {
+    enqueueParse({
+      documentId: id,
+      ownerUsername: input.ownerUsername,
+      kind: validated.value.kind,
+    });
+    return { ok: true, document: toPublicDocument(row) };
+  } catch (error) {
     storage.remove(relativePath);
+    if (isUniqueViolation(error)) {
+      const existing = await findByHashInKnowledgeBase(
+        input.ownerUsername,
+        input.knowledgeBaseId,
+        contentHash,
+      );
+      return {
+        ok: false,
+        msg: existing
+          ? `资料库里已有相同文件「${existing.filename}」`
+          : '资料库里已有相同文件',
+      };
+    }
     return { ok: false, msg: '哎呀，上传失败了，请稍后重试' };
   }
+}
+
+function isUniqueViolation(error: unknown): boolean {
+  return (
+    typeof error === 'object' &&
+    error !== null &&
+    'code' in error &&
+    (error as { code: string }).code === '23505'
+  );
 }

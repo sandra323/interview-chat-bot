@@ -1,6 +1,6 @@
 import type { KnowledgeDocument, KnowledgeDocumentPage } from '@ai-chat/shared';
 import { DOCUMENT_PAGE_SIZE } from '@ai-chat/shared';
-import { apiDelete, apiGet, apiGetBlob, apiUpload } from './http/client';
+import { apiDelete, apiGet, apiGetBlob, apiPost, apiUpload } from './http/client';
 
 export async function fetchDocuments(options?: {
   q?: string;
@@ -41,4 +41,13 @@ export async function deleteDocument(
   documentId: string,
 ): Promise<{ id: string }> {
   return apiDelete(`/api/documents/${encodeURIComponent(documentId)}`);
+}
+
+export async function reprocessDocument(
+  documentId: string,
+): Promise<KnowledgeDocument> {
+  return apiPost<KnowledgeDocument>(
+    `/api/documents/${encodeURIComponent(documentId)}/reprocess`,
+    {},
+  );
 }
