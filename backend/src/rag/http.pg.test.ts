@@ -24,8 +24,14 @@ import {
   createKnowledgeBase,
   getOrCreateDefaultForOwner,
 } from './knowledgeBaseStore.js';
-import { getByIdForOwner, insert } from './pgDocumentStore.js';
-import { resumeIncompleteParses, waitForParseIdle } from './parseWorker.js';
+import { deleteByIdForOwner, getByIdForOwner, insert } from './pgDocumentStore.js';
+import { resumeIncompleteParses, waitForParseIdle } from './ingestWorker.js';
+import { countForDocument, listChunkIdsForDocument } from './chunkStore.js';
+import {
+  createDeterministicEmbeddings,
+  resetEmbedderForTests,
+  setEmbedderForTests,
+} from './embedder.js';
 import { sha256Hex } from './contentHash.js';
 import { migrateDocumentsFromSqlite } from './migrateDocuments.js';
 import {
@@ -86,6 +92,7 @@ describe.skipIf(!testDatabaseUrl)('KB + documents HTTP with PostgreSQL', () => {
     await getPool().query(
       'TRUNCATE document_chunks, documents, knowledge_bases CASCADE',
     );
+    setEmbedderForTests(async (texts) => createDeterministicEmbeddings(texts));
 
     const env: ServerEnv = {
       port: 0,
@@ -98,6 +105,9 @@ describe.skipIf(!testDatabaseUrl)('KB + documents HTTP with PostgreSQL', () => {
       authPasswordHash: passwordHash,
       authSessionTtlHours: 24,
       databaseUrl: testDatabaseUrl,
+      openaiApiKey: '',
+      openaiEmbeddingModel: 'text-embedding-3-small',
+      openaiEmbeddingModelVersion: 'text-embedding-3-small@2024-01-25',
     };
 
     const app = createApp(env);
@@ -111,6 +121,7 @@ describe.skipIf(!testDatabaseUrl)('KB + documents HTTP with PostgreSQL', () => {
 
   afterEach(async () => {
     await waitForParseIdle();
+    resetEmbedderForTests();
     if (server) {
       await new Promise<void>((resolve, reject) => {
         server!.close((err) => (err ? reject(err) : resolve()));
@@ -521,4 +532,147 @@ describe.skipIf(!testDatabaseUrl)('KB + documents HTTP with PostgreSQL', () => {
     const stored = await getByIdForOwner(id, 'demo');
     expect(stored?.status).toBe('ready');
   });
+  it('writes embeddings and chunk metadata on upload', async () => {
+    const token = await login();
+    const form = new FormData();
+    form.append(
+      'file',
+      new Blob(['# 标题\n\n内容段落。'.repeat(20)], { type: 'text/markdown' }),
+      'long.md',
+    );
+    const uploadRes = await fetch(`${baseUrl}/api/documents`, {
+      method: 'POST',
+      headers: { Authorization: `Bearer ${token}` },
+      body: form,
+    });
+    const uploadBody = (await uploadRes.json()) as { data: { id: string } };
+    await waitForParseIdle();
+    const stored = await getByIdForOwner(uploadBody.data.id, 'demo');
+    expect(stored?.status).toBe('ready');
+    expect(stored?.chunkCount).toBeGreaterThanOrEqual(1);
+    expect(stored?.embeddingModel).toBeTruthy();
+    const count = await countForDocument('demo', uploadBody.data.id);
+    expect(count).toBe(stored?.chunkCount);
+  });
+
+  it('reprocess replaces chunks; busy and cross-user are rejected', async () => {
+    setEmbedderForTests(async (texts) => {
+      await new Promise((resolve) => setTimeout(resolve, 300));
+      return createDeterministicEmbeddings(texts);
+    });
+    const token = await login();
+    const form = new FormData();
+    form.append('file', new Blob(['reprocess me'], { type: 'text/plain' }), 'r.txt');
+    const uploadRes = await fetch(`${baseUrl}/api/documents`, {
+      method: 'POST',
+      headers: { Authorization: `Bearer ${token}` },
+      body: form,
+    });
+    const uploadBody = (await uploadRes.json()) as { data: { id: string } };
+    await waitForParseIdle();
+    const before = await listChunkIdsForDocument('demo', uploadBody.data.id);
+    expect(before.length).toBeGreaterThanOrEqual(1);
+
+    const again = await authJson(
+      token,
+      'POST',
+      `/api/documents/${uploadBody.data.id}/reprocess`,
+    );
+    expect(again.status).toBe(200);
+    const busy = await authJson(
+      token,
+      'POST',
+      `/api/documents/${uploadBody.data.id}/reprocess`,
+    );
+    expect(busy.status).toBe(400);
+
+    await waitForParseIdle();
+    const after = await listChunkIdsForDocument('demo', uploadBody.data.id);
+    expect(after.length).toBeGreaterThanOrEqual(1);
+    expect(after).not.toEqual(before);
+
+    const aliceKb = await createKnowledgeBase('alice', 'alice-rp');
+    const aliceDoc = await insert({
+      id: crypto.randomUUID(),
+      knowledgeBaseId: aliceKb.id,
+      ownerUsername: 'alice',
+      filename: 'secret.txt',
+      mimeType: 'text/plain',
+      sizeBytes: 1,
+      storagePath: 'alice/s.txt',
+      contentHash: sha256Hex(Buffer.from('x')),
+      status: 'failed',
+      progress: 0,
+      error: 'x',
+      sourceRelativePath: null,
+    });
+    const stolen = await authJson(
+      token,
+      'POST',
+      `/api/documents/${aliceDoc.id}/reprocess`,
+    );
+    expect(stolen.status).toBe(404);
+  });
+
+  it('clears chunks when deleting a document or knowledge base', async () => {
+    const token = await login();
+    const created = await authJson(token, 'POST', '/api/knowledge-bases', {
+      name: '待删库',
+    });
+    const kbId = (created.body.data as { id: string }).id;
+    const form = new FormData();
+    form.append('file', new Blob(['bye chunks'], { type: 'text/plain' }), 'c.txt');
+    const uploadRes = await fetch(
+      `${baseUrl}/api/knowledge-bases/${kbId}/documents`,
+      {
+        method: 'POST',
+        headers: { Authorization: `Bearer ${token}` },
+        body: form,
+      },
+    );
+    const uploadBody = (await uploadRes.json()) as { data: { id: string } };
+    await waitForParseIdle();
+    expect(await countForDocument('demo', uploadBody.data.id)).toBeGreaterThan(0);
+
+    const deletedDoc = await authJson(
+      token,
+      'DELETE',
+      `/api/documents/${uploadBody.data.id}`,
+    );
+    expect(deletedDoc.status).toBe(200);
+    expect(await countForDocument('demo', uploadBody.data.id)).toBe(0);
+
+    const form2 = new FormData();
+    form2.append('file', new Blob(['kb cascade'], { type: 'text/plain' }), 'd.txt');
+    const upload2 = await fetch(
+      `${baseUrl}/api/knowledge-bases/${kbId}/documents`,
+      {
+        method: 'POST',
+        headers: { Authorization: `Bearer ${token}` },
+        body: form2,
+      },
+    );
+    const body2 = (await upload2.json()) as { data: { id: string } };
+    await waitForParseIdle();
+    await authJson(token, 'DELETE', `/api/knowledge-bases/${kbId}`);
+    expect(await countForDocument('demo', body2.data.id)).toBe(0);
+  });
+
+  it('stops ingest without marking failed if the document is deleted', async () => {
+    const token = await login();
+    const form = new FormData();
+    form.append('file', new Blob(['vanishing'], { type: 'text/plain' }), 'v.txt');
+    const uploadRes = await fetch(`${baseUrl}/api/documents`, {
+      method: 'POST',
+      headers: { Authorization: `Bearer ${token}` },
+      body: form,
+    });
+    const uploadBody = (await uploadRes.json()) as { data: { id: string } };
+    await deleteByIdForOwner(uploadBody.data.id, 'demo');
+    await waitForParseIdle();
+    const gone = await getByIdForOwner(uploadBody.data.id, 'demo');
+    expect(gone).toBeNull();
+    expect(await countForDocument('demo', uploadBody.data.id)).toBe(0);
+  });
+
 });

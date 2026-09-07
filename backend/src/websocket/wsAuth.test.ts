@@ -70,6 +70,9 @@ describe('WS auth gate', () => {
       authPasswordHash: passwordHash,
       authSessionTtlHours: 24,
       databaseUrl: '',
+      openaiApiKey: '',
+      openaiEmbeddingModel: 'text-embedding-3-small',
+      openaiEmbeddingModelVersion: 'text-embedding-3-small@2024-01-25',
     };
 
     const app = createApp(env);

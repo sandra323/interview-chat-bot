@@ -8,7 +8,7 @@ import {
 import { createApp, attachWebSocketServer, setupGracefulShutdown } from './server.js';
 import { initPg } from './rag/pg.js';
 import { migrateDocumentsFromSqlite } from './rag/migrateDocuments.js';
-import { resumeIncompleteParses } from './rag/parseWorker.js';
+import { resumeIncompleteIngests } from './rag/ingestWorker.js';
 import { logger } from './utils/logger.js';
 
 loadEnvFiles();
@@ -28,7 +28,7 @@ if (env.databaseUrl) {
     await initPg();
     logger.info('PostgreSQL + pgvector initialized');
     await migrateDocumentsFromSqlite();
-    await resumeIncompleteParses();
+    await resumeIncompleteIngests();
   } catch (error) {
     logger.error('Failed to init PostgreSQL', {
       error: error instanceof Error ? error.message : 'Unknown error',

@@ -7,7 +7,7 @@ import {
   insert,
   toPublicDocument,
 } from '../rag/pgDocumentStore.js';
-import { enqueueParse } from '../rag/parseWorker.js';
+import { enqueueIngest } from '../rag/ingestWorker.js';
 
 export type IngestFileResult =
   | { ok: true; document: KnowledgeDocument }
@@ -76,7 +76,7 @@ export async function ingestFile(input: {
       error: null,
       sourceRelativePath: input.sourceRelativePath ?? null,
     });
-    enqueueParse({
+    enqueueIngest({
       documentId: id,
       ownerUsername: input.ownerUsername,
       kind: validated.value.kind,

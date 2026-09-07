@@ -5,12 +5,16 @@ import { sendFail, sendSuccess } from '../http/apiResponse.js';
 import { logger } from '../utils/logger.js';
 import { getFileStorage } from './fileStorage.js';
 import { ingestFile } from './ingestFile.js';
+import { kindFromFilename } from './validateUpload.js';
 import { handleMultipartUpload, routeParam, sendPgUnavailable } from './multerUpload.js';
+import { enqueueIngest } from '../rag/ingestWorker.js';
 import { getOrCreateDefaultForOwner } from '../rag/knowledgeBaseStore.js';
 import {
   deleteByIdForOwner,
   getByIdForOwner,
   listPageForOwner,
+  toPublicDocument,
+  updateStatus,
 } from '../rag/pgDocumentStore.js';
 
 function contentDispositionInline(filename: string): string {
@@ -181,6 +185,84 @@ export function createDocumentsRouter(pgEnabled: boolean): Router {
       sendFail(res, {
         code: ApiCode.INTERNAL_ERROR,
         msg: '哎呀，文件预览失败了，请稍后重试',
+      });
+    }
+  });
+
+
+  router.post('/:id/reprocess', async (req, res) => {
+    try {
+      if (!pgEnabled) {
+        sendPgUnavailable(res);
+        return;
+      }
+
+      const ownerUsername = req.auth?.username;
+      if (!ownerUsername) {
+        sendFail(res, {
+          code: ApiCode.UNAUTHORIZED,
+          msg: '请先登录',
+        });
+        return;
+      }
+
+      const doc = await getByIdForOwner(routeParam(req, 'id'), ownerUsername);
+      if (!doc) {
+        sendFail(res, {
+          code: ApiCode.NOT_FOUND,
+          msg: '哎呀，找不到这个文件了',
+        });
+        return;
+      }
+
+      if (
+        doc.status === 'pending' ||
+        doc.status === 'processing' ||
+        doc.status === 'uploading'
+      ) {
+        sendFail(res, {
+          code: ApiCode.BAD_REQUEST,
+          msg: '文件正在处理，请稍后再试',
+          httpStatus: 400,
+        });
+        return;
+      }
+
+      const parsed = kindFromFilename(doc.filename);
+      if (!parsed) {
+        sendFail(res, {
+          code: ApiCode.BAD_REQUEST,
+          msg: '哎呀，文件解析失败了，请换个文件再试',
+          httpStatus: 400,
+        });
+        return;
+      }
+
+      const pending = await updateStatus(doc.id, ownerUsername, {
+        status: 'pending',
+        progress: 0,
+        error: null,
+      });
+      if (!pending) {
+        sendFail(res, {
+          code: ApiCode.NOT_FOUND,
+          msg: '哎呀，找不到这个文件了',
+        });
+        return;
+      }
+      enqueueIngest({
+        documentId: doc.id,
+        ownerUsername,
+        kind: parsed.kind,
+      });
+      sendSuccess(res, toPublicDocument(pending));
+    } catch (error) {
+      logger.error('Failed to reprocess document', {
+        error: error instanceof Error ? error.message : 'Unknown error',
+      });
+      sendFail(res, {
+        code: ApiCode.INTERNAL_ERROR,
+        msg: '哎呀，处理失败了，请稍后重试',
       });
     }
   });

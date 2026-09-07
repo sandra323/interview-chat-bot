@@ -44,6 +44,10 @@ export interface ServerEnv {
    * 为空则跳过 RAG/pgvector 初始化，现有 Chat/资料库仍可用。
    */
   databaseUrl: string;
+  /** OpenAI embedding（环境变量 OPENAI_API_KEY）。缺省不阻断启动。 */
+  openaiApiKey: string;
+  openaiEmbeddingModel: string;
+  openaiEmbeddingModelVersion: string;
 }
 
 export function readServerEnv(): ServerEnv {
@@ -73,6 +77,12 @@ export function readServerEnv(): ServerEnv {
     authPasswordHash: process.env.AUTH_PASSWORD_HASH?.trim() ?? '',
     authSessionTtlHours: ttlParsed,
     databaseUrl: process.env.DATABASE_URL?.trim() ?? '',
+    openaiApiKey: process.env.OPENAI_API_KEY?.trim() ?? '',
+    openaiEmbeddingModel:
+      process.env.OPENAI_EMBEDDING_MODEL?.trim() || 'text-embedding-3-small',
+    openaiEmbeddingModelVersion:
+      process.env.OPENAI_EMBEDDING_MODEL_VERSION?.trim() ||
+      'text-embedding-3-small@2024-01-25',
   };
 }
 

@@ -283,14 +283,32 @@ export async function updateStatus(
     status: PgDocumentStatus;
     progress: number;
     error: string | null;
+    embeddingModel?: string | null;
+    embeddingModelVersion?: string | null;
+    chunkCount?: number;
   },
 ): Promise<PgDocumentRow | null> {
   const result = await getPool().query<DocumentDbRow>(
     `UPDATE documents
-     SET status = $3, progress = $4, error = $5, updated_at = now()
+     SET status = $3,
+         progress = $4,
+         error = $5,
+         updated_at = now(),
+         embedding_model = COALESCE($6, embedding_model),
+         embedding_model_version = COALESCE($7, embedding_model_version),
+         chunk_count = COALESCE($8, chunk_count)
      WHERE id = $1 AND owner_username = $2
      RETURNING *`,
-    [id, ownerUsername, patch.status, patch.progress, patch.error],
+    [
+      id,
+      ownerUsername,
+      patch.status,
+      patch.progress,
+      patch.error,
+      patch.embeddingModel ?? null,
+      patch.embeddingModelVersion ?? null,
+      patch.chunkCount ?? null,
+    ],
   );
   const row = result.rows[0];
   return row ? mapRow(row) : null;
@@ -356,7 +374,7 @@ export async function failStaleProcessing(
   return result.rowCount ?? 0;
 }
 
-export async function listIncompleteForParse(): Promise<
+export async function listIncompleteForIngest(): Promise<
   Array<{ id: string; ownerUsername: string; filename: string }>
 > {
   const result = await getPool().query<{
@@ -367,6 +385,10 @@ export async function listIncompleteForParse(): Promise<
     `SELECT id, owner_username, filename
      FROM documents
      WHERE status IN ('uploading', 'pending', 'processing')
+        OR (
+          status = 'ready'
+          AND (chunk_count = 0 OR embedding_model IS NULL)
+        )
      ORDER BY created_at ASC`,
   );
   return result.rows.map((row) => ({
@@ -375,3 +397,6 @@ export async function listIncompleteForParse(): Promise<
     filename: row.filename,
   }));
 }
+
+/** @deprecated 使用 listIncompleteForIngest */
+export const listIncompleteForParse = listIncompleteForIngest;
