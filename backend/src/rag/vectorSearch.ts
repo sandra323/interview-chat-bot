@@ -1,37 +1,23 @@
-import { EMBED_MAX_INPUT_CHARS, resolveVectorTopK } from './chunkConfig.js';
+import { resolveVectorTopK } from './chunkConfig.js';
 import { embeddingModelInfo, embedTexts } from './embedder.js';
 import { searchVector } from './chunkStore.js';
 import { logger } from '../utils/logger.js';
-import { RetrievalQueryError } from './retrievalErrors.js';
+import {
+  assertKnowledgeBaseId,
+  normalizeRetrievalQuery,
+} from './retrievalQuery.js';
 import type { VectorHit } from './retrievalTypes.js';
 
-const UUID_RE =
-  /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+export {
+  assertKnowledgeBaseId,
+  normalizeRetrievalQuery as normalizeQueryForEmbed,
+} from './retrievalQuery.js';
 
 export interface SearchByVectorInput {
   ownerUsername: string;
   knowledgeBaseId: string;
   query: string;
   k?: number;
-}
-
-/** 去空白；超长截断到 embedding 安全上限。空字符串表示不应检索。 */
-export function normalizeQueryForEmbed(query: string): string {
-  const trimmed = query.trim();
-  if (trimmed.length <= EMBED_MAX_INPUT_CHARS) {
-    return trimmed;
-  }
-  logger.warn('vector search query truncated', {
-    originalLength: trimmed.length,
-    maxChars: EMBED_MAX_INPUT_CHARS,
-  });
-  return trimmed.slice(0, EMBED_MAX_INPUT_CHARS);
-}
-
-export function assertKnowledgeBaseId(knowledgeBaseId: string): void {
-  if (!UUID_RE.test(knowledgeBaseId)) {
-    throw new RetrievalQueryError('knowledgeBaseId must be a UUID');
-  }
 }
 
 /**
@@ -41,7 +27,7 @@ export function assertKnowledgeBaseId(knowledgeBaseId: string): void {
 export async function searchByVector(
   input: SearchByVectorInput,
 ): Promise<VectorHit[]> {
-  const query = normalizeQueryForEmbed(input.query);
+  const query = normalizeRetrievalQuery(input.query);
   if (!query) {
     return [];
   }

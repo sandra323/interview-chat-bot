@@ -6,6 +6,7 @@ import {
   readServerEnv,
 } from './config/env.js';
 import { createApp, attachWebSocketServer, setupGracefulShutdown } from './server.js';
+import { backfillEmptyFtsTokens } from './rag/chunkStore.js';
 import { initPg } from './rag/pg.js';
 import { migrateDocumentsFromSqlite } from './rag/migrateDocuments.js';
 import { resumeIncompleteIngests } from './rag/ingestWorker.js';
@@ -27,6 +28,7 @@ if (env.databaseUrl) {
   try {
     await initPg();
     logger.info('PostgreSQL + pgvector initialized');
+    await backfillEmptyFtsTokens();
     await migrateDocumentsFromSqlite();
     await resumeIncompleteIngests();
   } catch (error) {

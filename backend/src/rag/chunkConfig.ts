@@ -25,15 +25,48 @@ export const VECTOR_TOP_K = 20;
 /** 防止误传超大 k 扫全表 */
 export const VECTOR_MAX_K = 100;
 
-/** 缺省 20；k<=0 视为不检索；超过 VECTOR_MAX_K 则钳制。 */
-export function resolveVectorTopK(k?: number): number {
+/** 关键词 FTS Top-K。Phase 9 Retrieval Benchmark 再调。 */
+export const KEYWORD_TOP_K = 20;
+export const KEYWORD_MAX_K = 100;
+
+/** RRF 常数 k。Phase 9 Retrieval Benchmark 再调。 */
+export const RRF_K = 60;
+/** RRF 融合后送入 rerank / 上下文的条数。Phase 9 再调。 */
+export const RRF_FUSION_TOP_N = 12;
+export const RRF_FUSION_MAX_N = 100;
+
+/** 启动时回填空 fts_tokens 的每批行数。 */
+export const FTS_BACKFILL_BATCH = 100;
+
+/**
+ * 缺省 defaultK；k<=0 视为不检索；超过 maxK 则钳制。
+ * 向量 / 关键词 / fusionTopN 共用，避免复制钳制逻辑。
+ */
+export function resolveClampedK(
+  k: number | undefined,
+  defaultK: number,
+  maxK: number,
+): number {
   if (k === undefined) {
-    return VECTOR_TOP_K;
+    return defaultK;
   }
   if (!Number.isFinite(k) || k <= 0) {
     return 0;
   }
-  return Math.min(Math.floor(k), VECTOR_MAX_K);
+  return Math.min(Math.floor(k), maxK);
+}
+
+/** 缺省 20；k<=0 视为不检索；超过 VECTOR_MAX_K 则钳制。 */
+export function resolveVectorTopK(k?: number): number {
+  return resolveClampedK(k, VECTOR_TOP_K, VECTOR_MAX_K);
+}
+
+export function resolveKeywordTopK(k?: number): number {
+  return resolveClampedK(k, KEYWORD_TOP_K, KEYWORD_MAX_K);
+}
+
+export function resolveFusionTopN(n?: number): number {
+  return resolveClampedK(n, RRF_FUSION_TOP_N, RRF_FUSION_MAX_N);
 }
 
 export const INGEST_PROGRESS = {

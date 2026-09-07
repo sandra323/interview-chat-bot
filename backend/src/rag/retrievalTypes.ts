@@ -14,3 +14,17 @@ export interface ChunkHit {
 export interface VectorHit extends ChunkHit {
   distance: number;
 }
+
+/** 关键词 FTS 命中。tsRank 为 Postgres ts_rank；RRF 只用数组位次。 */
+export interface KeywordHit extends ChunkHit {
+  tsRank: number;
+}
+
+/** RRF 融合命中。Phase 6/7 入口返回此形状；prompt 只用 ChunkHit 字段。 */
+export interface RankedHit extends ChunkHit {
+  rrfScore: number;
+  fromVector: boolean;
+  fromKeyword: boolean;
+  vectorRank: number | null;
+  keywordRank: number | null;
+}
