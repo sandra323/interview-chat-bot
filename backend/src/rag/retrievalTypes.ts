@@ -20,11 +20,17 @@ export interface KeywordHit extends ChunkHit {
   tsRank: number;
 }
 
-/** RRF 融合命中。Phase 6/7 入口返回此形状；prompt 只用 ChunkHit 字段。 */
+/** RRF 融合命中。Phase 6 精排的输入；prompt 只用 ChunkHit 字段。 */
 export interface RankedHit extends ChunkHit {
   rrfScore: number;
   fromVector: boolean;
   fromKeyword: boolean;
   vectorRank: number | null;
   keywordRank: number | null;
+}
+
+/** Voyage 精排命中。Phase 7 入口返回此形状；reranked 为 false 时仍可当资料注入。 */
+export interface RerankedHit extends RankedHit {
+  relevanceScore: number | null;
+  reranked: boolean;
 }

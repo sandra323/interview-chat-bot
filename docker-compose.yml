@@ -36,6 +36,8 @@ services:
       - OPENAI_API_KEY=${OPENAI_API_KEY:-}
       - OPENAI_EMBEDDING_MODEL=${OPENAI_EMBEDDING_MODEL:-text-embedding-3-small}
       - OPENAI_EMBEDDING_MODEL_VERSION=${OPENAI_EMBEDDING_MODEL_VERSION:-text-embedding-3-small@2024-01-25}
+      - VOYAGE_API_KEY=${VOYAGE_API_KEY:-}
+      - VOYAGE_RERANK_MODEL=${VOYAGE_RERANK_MODEL:-rerank-2-lite}
     depends_on:
       postgres:
         condition: service_healthy

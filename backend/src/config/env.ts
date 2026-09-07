@@ -48,6 +48,10 @@ export interface ServerEnv {
   openaiApiKey: string;
   openaiEmbeddingModel: string;
   openaiEmbeddingModelVersion: string;
+  /** Voyage rerank（环境变量 VOYAGE_API_KEY）。缺省不阻断启动，检索退回 RRF。 */
+  voyageApiKey: string;
+  voyageRerankModel: string;
+  voyageRerankUrl: string;
 }
 
 export function readServerEnv(): ServerEnv {
@@ -83,6 +87,12 @@ export function readServerEnv(): ServerEnv {
     openaiEmbeddingModelVersion:
       process.env.OPENAI_EMBEDDING_MODEL_VERSION?.trim() ||
       'text-embedding-3-small@2024-01-25',
+    voyageApiKey: process.env.VOYAGE_API_KEY?.trim() ?? '',
+    voyageRerankModel:
+      process.env.VOYAGE_RERANK_MODEL?.trim() || 'rerank-2-lite',
+    voyageRerankUrl:
+      process.env.VOYAGE_RERANK_URL?.trim() ||
+      'https://api.voyageai.com/v1/rerank',
   };
 }
 

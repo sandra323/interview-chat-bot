@@ -35,6 +35,15 @@ export const RRF_K = 60;
 export const RRF_FUSION_TOP_N = 12;
 export const RRF_FUSION_MAX_N = 100;
 
+/** Voyage 精排后注入 context 的条数。Phase 9 再调。 */
+export const RERANK_TOP_N = 5;
+export const RERANK_MAX_N = 20;
+export const RERANK_TIMEOUT_MS = 15_000;
+export const RERANK_MAX_RETRIES = 3;
+
+export const DEFAULT_VOYAGE_RERANK_MODEL = 'rerank-2-lite';
+export const DEFAULT_VOYAGE_RERANK_URL = 'https://api.voyageai.com/v1/rerank';
+
 /** 启动时回填空 fts_tokens 的每批行数。 */
 export const FTS_BACKFILL_BATCH = 100;
 
@@ -67,6 +76,10 @@ export function resolveKeywordTopK(k?: number): number {
 
 export function resolveFusionTopN(n?: number): number {
   return resolveClampedK(n, RRF_FUSION_TOP_N, RRF_FUSION_MAX_N);
+}
+
+export function resolveRerankTopN(n?: number): number {
+  return resolveClampedK(n, RERANK_TOP_N, RERANK_MAX_N);
 }
 
 export const INGEST_PROGRESS = {

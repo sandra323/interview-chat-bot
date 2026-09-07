@@ -54,6 +54,9 @@ describe('documents HTTP routes without PostgreSQL', () => {
       openaiApiKey: '',
       openaiEmbeddingModel: 'text-embedding-3-small',
       openaiEmbeddingModelVersion: 'text-embedding-3-small@2024-01-25',
+      voyageApiKey: '',
+      voyageRerankModel: 'rerank-2-lite',
+      voyageRerankUrl: 'https://api.voyageai.com/v1/rerank',
     };
 
     const app = createApp(env);

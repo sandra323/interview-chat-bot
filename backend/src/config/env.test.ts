@@ -24,6 +24,9 @@ function baseEnv(overrides: Partial<ServerEnv> = {}): ServerEnv {
     openaiApiKey: '',
     openaiEmbeddingModel: 'text-embedding-3-small',
     openaiEmbeddingModelVersion: 'text-embedding-3-small@2024-01-25',
+    voyageApiKey: '',
+    voyageRerankModel: 'rerank-2-lite',
+    voyageRerankUrl: 'https://api.voyageai.com/v1/rerank',
     ...overrides,
   };
 }
@@ -75,6 +78,38 @@ describe('assertAuthCredentials', () => {
     expect(() =>
       assertAuthCredentials(baseEnv({ authSessionTtlHours: 0 })),
     ).toThrow(/AUTH_SESSION_TTL_HOURS/);
+  });
+});
+
+describe('readServerEnv voyage fields', () => {
+  const keys = [
+    'VOYAGE_API_KEY',
+    'VOYAGE_RERANK_MODEL',
+    'VOYAGE_RERANK_URL',
+  ] as const;
+  const saved: Record<string, string | undefined> = {};
+
+  afterEach(() => {
+    for (const key of keys) {
+      if (saved[key] === undefined) {
+        delete process.env[key];
+      } else {
+        process.env[key] = saved[key];
+      }
+    }
+  });
+
+  it('defaults rerank model and trims the API key', () => {
+    for (const key of keys) {
+      saved[key] = process.env[key];
+    }
+    process.env.VOYAGE_API_KEY = '  voyage-test  ';
+    delete process.env.VOYAGE_RERANK_MODEL;
+    delete process.env.VOYAGE_RERANK_URL;
+    const env = readServerEnv();
+    expect(env.voyageApiKey).toBe('voyage-test');
+    expect(env.voyageRerankModel).toBe('rerank-2-lite');
+    expect(env.voyageRerankUrl).toBe('https://api.voyageai.com/v1/rerank');
   });
 });
 

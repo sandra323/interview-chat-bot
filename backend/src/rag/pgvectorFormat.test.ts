@@ -3,6 +3,8 @@ import {
   EMBED_DIM,
   KEYWORD_MAX_K,
   KEYWORD_TOP_K,
+  RERANK_MAX_N,
+  RERANK_TOP_N,
   RRF_FUSION_MAX_N,
   RRF_FUSION_TOP_N,
   VECTOR_MAX_K,
@@ -10,6 +12,7 @@ import {
   resolveClampedK,
   resolveFusionTopN,
   resolveKeywordTopK,
+  resolveRerankTopN,
   resolveVectorTopK,
 } from './chunkConfig.js';
 import {
@@ -66,12 +69,15 @@ describe('resolveVectorTopK', () => {
   });
 });
 
-describe('resolveKeywordTopK / resolveFusionTopN', () => {
-  it('uses keyword and fusion experimental defaults', () => {
+describe('resolveKeywordTopK / resolveFusionTopN / resolveRerankTopN', () => {
+  it('uses keyword, fusion, and rerank experimental defaults', () => {
     expect(resolveKeywordTopK()).toBe(KEYWORD_TOP_K);
     expect(resolveKeywordTopK(KEYWORD_MAX_K + 1)).toBe(KEYWORD_MAX_K);
     expect(resolveFusionTopN()).toBe(RRF_FUSION_TOP_N);
     expect(resolveFusionTopN(RRF_FUSION_MAX_N + 1)).toBe(RRF_FUSION_MAX_N);
     expect(resolveFusionTopN(0)).toBe(0);
+    expect(resolveRerankTopN()).toBe(RERANK_TOP_N);
+    expect(resolveRerankTopN(RERANK_MAX_N + 1)).toBe(RERANK_MAX_N);
+    expect(resolveRerankTopN(0)).toBe(0);
   });
 });
