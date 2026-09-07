@@ -94,12 +94,17 @@ export class ChatStore {
         ON generations(conversation_id, updated_at);
     `);
 
-    // title 列加入之前创建的已有数据库
+    // title / knowledge_base_id 列加入之前创建的已有数据库
     const cols = this.db
       .prepare(`PRAGMA table_info(conversations)`)
       .all() as Array<{ name: string }>;
     if (!cols.some((c) => c.name === 'title')) {
       this.db.exec(`ALTER TABLE conversations ADD COLUMN title TEXT`);
+    }
+    if (!cols.some((c) => c.name === 'knowledge_base_id')) {
+      this.db.exec(
+        `ALTER TABLE conversations ADD COLUMN knowledge_base_id TEXT DEFAULT NULL`,
+      ); // 添加knowledge_base_id列
     }
   }
 

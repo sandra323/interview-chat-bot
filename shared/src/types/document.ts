@@ -3,6 +3,8 @@
 export const DOCUMENT_STATUSES = [
   'queued',
   'uploading',
+  'pending',
+  'processing',
   'ready',
   'failed',
 ] as const;
@@ -15,7 +17,18 @@ export const DOCUMENT_MAX_BYTES = 20 * 1024 * 1024;
 export const DOCUMENT_PAGE_SIZE = 10;
 
 export const DOCUMENT_FILE_ACCEPT =
-  '.pdf,.md,application/pdf,text/markdown';
+  '.pdf,.md,.txt,.docx,application/pdf,text/markdown,text/plain,application/vnd.openxmlformats-officedocument.wordprocessingml.document';
+
+/** 兼容层与迁移使用的默认知识库名称。 */
+export const DEFAULT_KNOWLEDGE_BASE_NAME = '默认资料库';
+
+export interface KnowledgeBase {
+  id: string;
+  name: string;
+  description: string;
+  createdAt: number;
+  updatedAt: number;
+}
 
 export interface KnowledgeDocument {
   id: string;

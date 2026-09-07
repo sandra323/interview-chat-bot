@@ -8,6 +8,7 @@ import {
 import {
   deleteDocument,
   fetchDocuments,
+  reprocessDocument,
   uploadDocument,
 } from '@/apis/documents';
 import { userFacingApiMessage } from '@/apis/http/client';
@@ -17,8 +18,12 @@ import DocumentPreviewDrawer from './DocumentPreviewDrawer';
 import styles from './index.module.less';
 
 const SEARCH_DEBOUNCE_MS = 300;
+const POLL_MS = 2500;
 const MAX_PARALLEL_UPLOADS = 3;
 const PDF_MAGIC = [0x25, 0x50, 0x44, 0x46];
+const ZIP_MAGIC = [0x50, 0x4b];
+const UNSUPPORTED_TYPE_MSG =
+  '哎呀，只支持 PDF、Markdown、TXT 或 Word（.docx）';
 
 type UploadJob = { file: File; localId: string };
 
@@ -27,14 +32,39 @@ function hasPdfMagic(bytes: Uint8Array): boolean {
   return PDF_MAGIC.every((b, i) => bytes[i] === b);
 }
 
+function hasZipMagic(bytes: Uint8Array): boolean {
+  if (bytes.length < ZIP_MAGIC.length) return false;
+  return ZIP_MAGIC.every((b, i) => bytes[i] === b);
+}
+
 function hasNulByte(bytes: Uint8Array): boolean {
   return bytes.subarray(0, 512).includes(0);
 }
 
+function guessMimeType(filename: string, fileType: string): string {
+  if (fileType) return fileType;
+  const name = filename.toLowerCase();
+  if (name.endsWith('.pdf')) return 'application/pdf';
+  if (name.endsWith('.txt')) return 'text/plain';
+  if (name.endsWith('.docx')) {
+    return 'application/vnd.openxmlformats-officedocument.wordprocessingml.document';
+  }
+  return 'text/markdown';
+}
+
+function isProcessingStatus(status: KnowledgeDocument['status']): boolean {
+  return status === 'pending' || status === 'processing';
+}
+
 async function clientValidate(file: File): Promise<string | null> {
   const name = file.name.toLowerCase();
-  if (!name.endsWith('.pdf') && !name.endsWith('.md')) {
-    return '哎呀，只支持 PDF 或 Markdown 文件';
+  if (
+    !name.endsWith('.pdf') &&
+    !name.endsWith('.md') &&
+    !name.endsWith('.txt') &&
+    !name.endsWith('.docx')
+  ) {
+    return UNSUPPORTED_TYPE_MSG;
   }
   if (file.size > DOCUMENT_MAX_BYTES) {
     return '哎呀，文件太大了，请上传 20MB 以内的文件';
@@ -46,8 +76,14 @@ async function clientValidate(file: File): Promise<string | null> {
   if (name.endsWith('.pdf') && !hasPdfMagic(head)) {
     return '哎呀，文件内容不是有效的 PDF';
   }
-  if (name.endsWith('.md') && (hasPdfMagic(head) || hasNulByte(head))) {
-    return '哎呀，只支持 PDF 或 Markdown 文件';
+  if (name.endsWith('.docx') && !hasZipMagic(head)) {
+    return '哎呀，文件内容不是有效的 Word 文档';
+  }
+  if (
+    (name.endsWith('.md') || name.endsWith('.txt')) &&
+    (hasPdfMagic(head) || hasNulByte(head))
+  ) {
+    return UNSUPPORTED_TYPE_MSG;
   }
   return null;
 }
@@ -74,6 +110,8 @@ export default function KnowledgeBase() {
   const inflightRef = useRef(0);
   const queryRef = useRef(query);
   queryRef.current = query;
+  const hasRowsRef = useRef(false);
+  hasRowsRef.current = items.length > 0 || localDocs.length > 0;
 
   useEffect(() => {
     const timer = window.setTimeout(() => {
@@ -88,14 +126,17 @@ export default function KnowledgeBase() {
 
   useEffect(() => {
     let cancelled = false;
-    setLoading(true);
+    if (!hasRowsRef.current) {
+      setLoading(true);
+    }
     void fetchDocuments({ q: query, page, pageSize: DOCUMENT_PAGE_SIZE })
       .then((data) => {
         if (cancelled) return;
         setItems(data.items);
         setTotal(data.total);
+        const serverIds = new Set(data.items.map((doc) => doc.id));
         setLocalDocs((prev) =>
-          prev.filter((doc) => doc.status !== 'ready'),
+          prev.filter((doc) => !serverIds.has(doc.id) && doc.status !== 'ready'),
         );
       })
       .catch((err: unknown) => {
@@ -109,6 +150,17 @@ export default function KnowledgeBase() {
       cancelled = true;
     };
   }, [query, page, refreshKey, message]);
+
+  useEffect(() => {
+    const busy = [...items, ...localDocs].some((doc) =>
+      isProcessingStatus(doc.status),
+    );
+    if (!busy) return;
+    const timer = window.setInterval(() => {
+      setRefreshKey((key) => key + 1);
+    }, POLL_MS);
+    return () => window.clearInterval(timer);
+  }, [items, localDocs]);
 
   const patchLocal = useCallback(
     (id: string, patch: Partial<KnowledgeDocument>) => {
@@ -133,11 +185,7 @@ export default function KnowledgeBase() {
       })
         .then((uploaded) => {
           setLocalDocs((prev) =>
-            prev.map((doc) =>
-              doc.id === job.localId
-                ? { ...uploaded, progress: 100, status: 'ready' }
-                : doc,
-            ),
+            prev.map((doc) => (doc.id === job.localId ? uploaded : doc)),
           );
           setTotal((count) => count + 1);
         })
@@ -164,9 +212,7 @@ export default function KnowledgeBase() {
           const base: KnowledgeDocument = {
             id: localId,
             filename: file.name,
-            mimeType: file.type || (file.name.toLowerCase().endsWith('.pdf')
-              ? 'application/pdf'
-              : 'text/markdown'),
+            mimeType: guessMimeType(file.name, file.type),
             sizeBytes: file.size,
             status: clientError ? 'failed' : 'queued',
             progress: 0,
@@ -247,6 +293,26 @@ export default function KnowledgeBase() {
     [message, page, total],
   );
 
+  const handleReprocess = useCallback(
+    async (doc: KnowledgeDocument) => {
+      try {
+        const updated = await reprocessDocument(doc.id);
+        setItems((prev) =>
+          prev.map((row) => (row.id === doc.id ? updated : row)),
+        );
+        setLocalDocs((prev) =>
+          prev.map((row) => (row.id === doc.id ? updated : row)),
+        );
+        setRefreshKey((key) => key + 1);
+      } catch (err: unknown) {
+        message.error(
+          userFacingApiMessage(err, '哎呀，处理失败了，请稍后重试'),
+        );
+      }
+    },
+    [message],
+  );
+
   const handleDelete = useCallback(
     (doc: KnowledgeDocument) => {
       modal.confirm({
@@ -318,6 +384,7 @@ export default function KnowledgeBase() {
           onPageChange={setPage}
           onPreview={setPreviewDoc}
           onDelete={handleDelete}
+          onReprocess={handleReprocess}
         />
       </div>
       <DocumentPreviewDrawer

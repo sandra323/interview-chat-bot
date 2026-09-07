@@ -20,6 +20,10 @@ function baseEnv(overrides: Partial<ServerEnv> = {}): ServerEnv {
     authUsername: 'demo',
     authPasswordHash: SAMPLE_HASH,
     authSessionTtlHours: 24,
+    databaseUrl: '',
+    openaiApiKey: '',
+    openaiEmbeddingModel: 'text-embedding-3-small',
+    openaiEmbeddingModelVersion: 'text-embedding-3-small@2024-01-25',
     ...overrides,
   };
 }

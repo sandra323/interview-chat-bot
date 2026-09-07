@@ -1,12 +1,16 @@
 import { DOCUMENT_MAX_BYTES } from '@ai-chat/shared';
 
-export type DocumentKind = 'pdf' | 'markdown';
+export type DocumentKind = 'pdf' | 'markdown' | 'txt' | 'docx';
 
 export interface ValidatedUpload {
   filename: string;
-  ext: '.pdf' | '.md';
+  ext: '.pdf' | '.md' | '.txt' | '.docx';
   kind: DocumentKind;
-  mimeType: 'application/pdf' | 'text/markdown';
+  mimeType:
+    | 'application/pdf'
+    | 'text/markdown'
+    | 'text/plain'
+    | 'application/vnd.openxmlformats-officedocument.wordprocessingml.document';
 }
 
 export type ValidateUploadResult =
@@ -15,18 +19,36 @@ export type ValidateUploadResult =
 
 const MAX_FILENAME_LEN = 255;
 const PDF_MAGIC = [0x25, 0x50, 0x44, 0x46]; // %PDF
+const ZIP_MAGIC = [0x50, 0x4b]; // PK
+const UNSUPPORTED_TYPE_MSG =
+  '哎呀，只支持 PDF、Markdown、TXT 或 Word（.docx）';
+
+const CANONICAL_MIME: Record<DocumentKind, ValidatedUpload['mimeType']> = {
+  pdf: 'application/pdf',
+  markdown: 'text/markdown',
+  txt: 'text/plain',
+  docx: 'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+};
 
 function takeBasename(originalName: string): string {
   return originalName.replace(/\\/g, '/').split('/').pop()?.trim() ?? '';
 }
 
-function extKind(filename: string): { ext: '.pdf' | '.md'; kind: DocumentKind } | null {
+export function kindFromFilename(
+  filename: string,
+): { ext: ValidatedUpload['ext']; kind: DocumentKind } | null {
   const lower = filename.toLowerCase();
   if (lower.endsWith('.pdf')) {
     return { ext: '.pdf', kind: 'pdf' };
   }
   if (lower.endsWith('.md')) {
     return { ext: '.md', kind: 'markdown' };
+  }
+  if (lower.endsWith('.txt')) {
+    return { ext: '.txt', kind: 'txt' };
+  }
+  if (lower.endsWith('.docx')) {
+    return { ext: '.docx', kind: 'docx' };
   }
   return null;
 }
@@ -39,10 +61,20 @@ function mimeAllowed(kind: DocumentKind, mimeType: string): boolean {
   if (kind === 'pdf') {
     return mime === 'application/pdf' || mime === 'application/x-pdf';
   }
+  if (kind === 'markdown') {
+    return (
+      mime === 'text/markdown' ||
+      mime === 'text/x-markdown' ||
+      mime === 'text/plain'
+    );
+  }
+  if (kind === 'txt') {
+    return mime === 'text/plain';
+  }
   return (
-    mime === 'text/markdown' ||
-    mime === 'text/x-markdown' ||
-    mime === 'text/plain'
+    mime ===
+      'application/vnd.openxmlformats-officedocument.wordprocessingml.document' ||
+    mime === 'application/zip'
   );
 }
 
@@ -51,6 +83,13 @@ export function hasPdfMagic(bytes: ArrayLike<number>): boolean {
     return false;
   }
   return PDF_MAGIC.every((b, i) => bytes[i] === b);
+}
+
+export function hasZipMagic(bytes: ArrayLike<number>): boolean {
+  if (bytes.length < ZIP_MAGIC.length) {
+    return false;
+  }
+  return ZIP_MAGIC.every((b, i) => bytes[i] === b);
 }
 
 function hasNulByte(bytes: ArrayLike<number>, limit = 512): boolean {
@@ -70,7 +109,20 @@ function contentMatchesKind(
   if (kind === 'pdf') {
     return hasPdfMagic(bytes);
   }
-  return !hasPdfMagic(bytes) && !hasNulByte(bytes);
+  if (kind === 'docx') {
+    return hasZipMagic(bytes); // 检查文件是否是ZIP格式
+  }
+  return !hasPdfMagic(bytes) && !hasNulByte(bytes); // 检查文件是否是PDF格式或空文件
+}
+
+function contentMismatchMsg(kind: DocumentKind): string {
+  if (kind === 'pdf') {
+    return '哎呀，文件内容不是有效的 PDF';
+  }
+  if (kind === 'docx') {
+    return '哎呀，文件内容不是有效的 Word 文档';
+  }
+  return UNSUPPORTED_TYPE_MSG;
 }
 
 /**
@@ -91,13 +143,13 @@ export function validateUpload(input: {
     return { ok: false, msg: '哎呀，文件名太长了，请缩短后再试' };
   }
 
-  const parsed = extKind(filename);
+  const parsed = kindFromFilename(filename); // 解析文件名
   if (!parsed) {
-    return { ok: false, msg: '哎呀，只支持 PDF 或 Markdown 文件' };
+    return { ok: false, msg: UNSUPPORTED_TYPE_MSG }; // 返回不支持的文件类型
   }
 
   if (!mimeAllowed(parsed.kind, input.mimeType)) {
-    return { ok: false, msg: '哎呀，只支持 PDF 或 Markdown 文件' };
+    return { ok: false, msg: UNSUPPORTED_TYPE_MSG };
   }
 
   if (!Number.isFinite(input.sizeBytes) || input.sizeBytes < 0) {
@@ -113,10 +165,7 @@ export function validateUpload(input: {
   if (input.bytes && !contentMatchesKind(parsed.kind, input.bytes)) {
     return {
       ok: false,
-      msg:
-        parsed.kind === 'pdf'
-          ? '哎呀，文件内容不是有效的 PDF'
-          : '哎呀，只支持 PDF 或 Markdown 文件',
+      msg: contentMismatchMsg(parsed.kind),
     };
   }
 
@@ -126,7 +175,7 @@ export function validateUpload(input: {
       filename,
       ext: parsed.ext,
       kind: parsed.kind,
-      mimeType: parsed.kind === 'pdf' ? 'application/pdf' : 'text/markdown',
+      mimeType: CANONICAL_MIME[parsed.kind],
     },
   };
 }

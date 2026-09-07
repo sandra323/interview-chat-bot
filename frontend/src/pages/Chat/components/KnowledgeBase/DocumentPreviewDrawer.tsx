@@ -19,6 +19,13 @@ function isPdf(doc: KnowledgeDocument, contentType: string): boolean {
   );
 }
 
+function isDocx(doc: KnowledgeDocument): boolean {
+  return (
+    doc.filename.toLowerCase().endsWith('.docx') ||
+    doc.mimeType.includes('wordprocessingml')
+  );
+}
+
 function revokeUrl(url: string | null): void {
   if (url) {
     URL.revokeObjectURL(url);
@@ -33,6 +40,7 @@ export default function DocumentPreviewDrawer({
   const [error, setError] = useState<string | null>(null);
   const [pdfUrl, setPdfUrl] = useState<string | null>(null);
   const [markdown, setMarkdown] = useState('');
+  const [unsupported, setUnsupported] = useState(false);
   const pdfUrlRef = useRef<string | null>(null);
 
   useEffect(() => {
@@ -41,7 +49,20 @@ export default function DocumentPreviewDrawer({
       setError(null);
       setPdfUrl(null);
       setMarkdown('');
+      setUnsupported(false);
       return;
+    }
+
+    if (isDocx(preview)) {
+      setLoading(false);
+      setError(null);
+      setPdfUrl(null);
+      setMarkdown('');
+      setUnsupported(true);
+      return () => {
+        revokeUrl(pdfUrlRef.current); // 撤销PDF URL
+        pdfUrlRef.current = null; // 设置PDF URL为空
+      };
     }
 
     let cancelled = false;
@@ -49,6 +70,7 @@ export default function DocumentPreviewDrawer({
     setError(null);
     setPdfUrl(null);
     setMarkdown('');
+    setUnsupported(false);
 
     void fetchDocumentContent(preview.id)
       .then(async ({ blob, contentType }) => {
@@ -98,6 +120,8 @@ export default function DocumentPreviewDrawer({
         </div>
       ) : error ? (
         <p className={styles.previewError}>{error}</p>
+      ) : unsupported ? (
+        <p className={styles.previewError}>此类型暂不支持在线预览</p>
       ) : pdfUrl ? (
         <iframe
           className={styles.pdfFrame}
