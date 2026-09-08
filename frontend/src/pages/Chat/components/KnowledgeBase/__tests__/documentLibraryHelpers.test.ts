@@ -26,12 +26,15 @@ function doc(id: string, filename: string): KnowledgeDocument {
 describe('documentLibraryHelpers', () => {
   it('detects duplicate upload messages', () => {
     expect(isDuplicateUploadMessage('已有相同文件')).toBe(true);
+    expect(isDuplicateUploadMessage('同名文件已存在')).toBe(true);
+    expect(isDuplicateUploadMessage('相同内容的文件')).toBe(true);
     expect(isDuplicateUploadMessage('上传失败')).toBe(false);
   });
 
   it('matches filename case-insensitively', () => {
     expect(matchesQuery('Report.PDF', 'pdf')).toBe(true);
     expect(matchesQuery('notes.txt', 'doc')).toBe(false);
+    expect(matchesQuery('notes.txt', '')).toBe(true);
   });
 
   it('merges local rows ahead of server rows without duplicate ids', () => {
@@ -69,6 +72,18 @@ describe('documentLibraryHelpers', () => {
   it('refreshes in place when page still valid after delete', () => {
     const result = computePageAfterServerDelete(1, 25, 1, DOCUMENT_PAGE_SIZE);
     expect(result).toEqual({ nextPage: 1, shouldRefresh: true });
+  });
+
+  it('does not refresh when nothing was deleted', () => {
+    expect(computePageAfterServerDelete(2, 11, 0)).toEqual({
+      nextPage: 2,
+      shouldRefresh: false,
+    });
+  });
+
+  it('steps back to page 1 when the last page is emptied', () => {
+    const result = computePageAfterServerDelete(2, DOCUMENT_PAGE_SIZE, DOCUMENT_PAGE_SIZE);
+    expect(result).toEqual({ nextPage: 1, shouldRefresh: false });
   });
 
   it('pauses polling when tab is hidden', () => {

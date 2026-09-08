@@ -5,7 +5,9 @@ import {
 import {
   RAG_GUARD_SYSTEM,
   buildRagMessages,
+  buildRevokedKbMessages,
   emptyRecallPrompt,
+  revokedKbPrompt,
 } from '../buildRagMessages.js';
 import type { RerankedHit } from '../retrievalTypes.js';
 
@@ -110,6 +112,24 @@ describe('buildRagMessages', () => {
     });
     expect(missing[1]?.content).toContain('已不存在或无权使用');
     expect(missing[1]?.content).not.toContain('<<<KB>>>');
+  });
+
+  it('places revoked-kb notice immediately before the latest user turn', () => {
+    const messages = buildRevokedKbMessages([
+      { role: 'user', content: '库里怎么说' },
+      { role: 'assistant', content: '资料写着赏花时间是三月' },
+      { role: 'user', content: '那几点开门' },
+    ]);
+    expect(messages.at(-2)?.role).toBe('system');
+    expect(messages.at(-2)?.content).toBe(revokedKbPrompt());
+    expect(messages.at(-1)).toEqual({ role: 'user', content: '那几点开门' });
+    expect(messages.at(-2)?.content).toContain('不要根据聊天记录猜测');
+  });
+
+  it('does not inject revoked-kb notice when there is no assistant history', () => {
+    expect(
+      buildRevokedKbMessages([{ role: 'user', content: '你好' }]),
+    ).toEqual([{ role: 'user', content: '你好' }]);
   });
 
   it('caps excerpt length', () => {

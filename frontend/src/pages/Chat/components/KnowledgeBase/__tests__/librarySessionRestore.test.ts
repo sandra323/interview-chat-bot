@@ -20,4 +20,11 @@ describe('librarySessionRestore', () => {
   it('stays on detail while active kb still exists', () => {
     expect(shouldLeaveDeletedKbDetail('kb-1', ['kb-1'])).toBe(false);
   });
+
+  it('does not restore or leave when ids are empty', () => {
+    expect(shouldRestoreLibraryDetail(null, ['kb-1'])).toBe(false);
+    expect(shouldRestoreLibraryDetail('', ['kb-1'])).toBe(false);
+    expect(shouldLeaveDeletedKbDetail(null, [])).toBe(false);
+    expect(shouldLeaveDeletedKbDetail('kb-1', [])).toBe(true);
+  });
 });

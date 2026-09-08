@@ -1,6 +1,7 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import type { KnowledgeBase } from '@ai-chat/shared';
 import { fetchKnowledgeBases } from '@/apis/knowledgeBases';
+import { useChatStore } from '../useChatStore';
 import { useKnowledgeBaseCatalog } from '../useKnowledgeBaseCatalog';
 
 vi.mock('@/apis/knowledgeBases', () => ({
@@ -53,5 +54,39 @@ describe('useKnowledgeBaseCatalog', () => {
     useKnowledgeBaseCatalog.getState().upsert(kb({ id: 'a', name: 'A' }));
     useKnowledgeBaseCatalog.getState().remove('a');
     expect(useKnowledgeBaseCatalog.getState().items).toEqual([]);
+  });
+
+  it('remove clears the chat binding only when the deleted id is selected', () => {
+    useChatStore.setState({ knowledgeBaseId: 'a' });
+    useKnowledgeBaseCatalog.getState().upsert(kb({ id: 'a', name: 'A' }));
+    useKnowledgeBaseCatalog.getState().upsert(kb({ id: 'b', name: 'B' }));
+
+    useKnowledgeBaseCatalog.getState().remove('b');
+    expect(useChatStore.getState().knowledgeBaseId).toBe('a');
+
+    useKnowledgeBaseCatalog.getState().remove('a');
+    expect(useChatStore.getState().knowledgeBaseId).toBeNull();
+  });
+
+  it('ignores a stale load that finishes after a newer load', async () => {
+    let resolveFirst: (value: KnowledgeBase[]) => void = () => {};
+    fetchMock.mockImplementationOnce(
+      () =>
+        new Promise((resolve) => {
+          resolveFirst = resolve;
+        }),
+    );
+    fetchMock.mockResolvedValueOnce([kb({ id: 'fresh', name: '新' })]);
+
+    const first = useKnowledgeBaseCatalog.getState().load();
+    const second = useKnowledgeBaseCatalog.getState().load();
+    await second;
+    resolveFirst([kb({ id: 'stale', name: '旧' })]);
+    await first;
+
+    expect(useKnowledgeBaseCatalog.getState().items.map((item) => item.id)).toEqual([
+      'fresh',
+    ]);
+    expect(useKnowledgeBaseCatalog.getState().status).toBe('ready');
   });
 });

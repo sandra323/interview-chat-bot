@@ -10,3 +10,4 @@ coverage/
 .vite/
 *.tsbuildinfo
 backend/.data/
+backend/src/rag/benchmark/reports/

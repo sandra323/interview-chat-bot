@@ -17,6 +17,10 @@ import { getAuthSessionStore } from '../auth/sessionStore.js';
 import { resolveBearerSession } from '../auth/resolveSession.js';
 import type { GenerationRunner } from '../generation/generationRunner.js';
 import { buildRagMessages } from '../rag/buildRagMessages.js';
+import {
+  libraryRefusalText,
+  type LibraryRefusalReason,
+} from '../rag/libraryRefusal.js';
 import { isKnowledgeBaseId } from '../rag/retrievalQuery.js';
 import {
   RetrievalAbortedError,
@@ -470,6 +474,19 @@ async function handleChatMessage(
   }
 
   const history = store.listChatMessages(conversationId);
+  if (ragResult.kind === 'hits' || ragResult.kind === 'empty') {
+    store.markKnowledgeBaseUsed(conversationId);
+  }
+  const contextRevoked =
+    ragResult.kind === 'unbound' &&
+    store.mustRefuseUnboundLibraryContinuation(conversationId);
+  const refusalReason = libraryRefusalReason(ragResult.kind, contextRevoked);
+
+  if (refusalReason) {
+    emitFixedLibraryReply(connection, conversationId, generationId, refusalReason);
+    return;
+  }
+
   const llmMessages = applyRagToHistory(history, ragResult);
 
   sendMessage(connection.ws, {
@@ -491,6 +508,57 @@ async function handleChatMessage(
     conversationId,
     generationId,
     model: config.model,
+  });
+}
+
+function libraryRefusalReason(
+  kind: RetrieveForChatResult['kind'],
+  contextRevoked: boolean,
+): LibraryRefusalReason | null {
+  if (kind === 'empty') return 'no_hit';
+  if (kind === 'kb_missing' || contextRevoked) return 'gone';
+  if (kind === 'unavailable') return 'unavailable';
+  return null;
+}
+
+/** 不调用模型。查不到、库已删除或检索失败时，只回固定诚实文案。 */
+function emitFixedLibraryReply(
+  connection: ConnectionState,
+  conversationId: string,
+  generationId: string,
+  reason: LibraryRefusalReason,
+): void {
+  const store = getChatStore();
+  const content = libraryRefusalText(reason);
+  const appended = store.appendGenerationContent(generationId, content);
+  if (!appended) return;
+
+  const finalized = store.finalizeGeneration(generationId, 'completed', {
+    persistAssistant: true,
+  });
+  const text = finalized?.contentBuffer ?? content;
+
+  sendMessage(connection.ws, {
+    type: 'reply_start',
+    conversationId,
+    generationId,
+    messageId: generationId,
+  });
+  sendMessage(connection.ws, {
+    type: 'reply_delta',
+    conversationId,
+    generationId,
+    messageId: generationId,
+    delta: text,
+    offset: 0,
+  });
+  sendMessage(connection.ws, {
+    type: 'reply_end',
+    conversationId,
+    generationId,
+    messageId: generationId,
+    content: text,
+    reason: 'completed',
   });
 }
 

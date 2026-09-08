@@ -47,7 +47,12 @@ describe('useChatStore', () => {
     expect(
       Object.prototype.hasOwnProperty.call(partial, 'knowledgeBaseId'),
     ).toBe(false);
+    expect(
+      Object.prototype.hasOwnProperty.call(partial, 'retrievalHint'),
+    ).toBe(false);
+    useChatStore.getState().setRetrievalHint('正在检索知识库…');
     useChatStore.getState().clearChat();
     expect(useChatStore.getState().knowledgeBaseId).toBeNull();
+    expect(useChatStore.getState().retrievalHint).toBeNull();
   });
 });

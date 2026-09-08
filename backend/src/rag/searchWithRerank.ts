@@ -22,6 +22,16 @@ import { logger } from '../utils/logger.js';
 
 export interface SearchWithRerankInput extends HybridSearchInput {
   rerankTopN?: number;
+  /**
+   * 精排 fail-open 时回调。single_hit 不算降级。
+   * Chat 不传；benchmark 用来统计 rerank: degraded。不改变返回数组。
+   */
+  onDegraded?: (reason: Exclude<RerankDegradedReason, 'single_hit' | null>) => void;
+  /**
+   * hybrid 融合候选（截成 rerank Top-N 之前）。
+   * Chat 不传；benchmark 用它算 Recall@12。不改变返回数组。
+   */
+  onFusionHits?: (hits: RankedHit[]) => void;
 }
 
 export type RerankDegradedReason =
@@ -46,6 +56,7 @@ export async function searchWithRerank(
   }
 
   const hits = await hybridSearch(input);
+  input.onFusionHits?.(hits);
   if (hits.length === 0) {
     return [];
   }
@@ -55,6 +66,9 @@ export async function searchWithRerank(
     const reason: RerankDegradedReason = hits.length === 1
       ? 'single_hit'
       : 'not_configured';
+    if (reason !== 'single_hit') {
+      input.onDegraded?.(reason);
+    }
     const sliced = asUnreranked(hits, topN);
     logger.info('hybrid search with rerank', {
       knowledgeBaseId: input.knowledgeBaseId,
@@ -101,6 +115,9 @@ export async function searchWithRerank(
       reason,
       error: error instanceof Error ? error.message : 'unknown',
     });
+    if (reason && reason !== 'single_hit') {
+      input.onDegraded?.(reason);
+    }
     return asUnreranked(hits, topN);
   }
 }

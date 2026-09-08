@@ -53,6 +53,44 @@ export function missingKbPrompt(): string {
   ].join('\n');
 }
 
+/** 删库后历史里仍有旧回答时，紧贴本轮用户问题，禁止沿用已删除资料。 */
+export function revokedKbPrompt(): string {
+  return [
+    '用户已删除本对话此前绑定的知识库，资料库内容已不可用，本次不能检索。',
+    '历史中助手此前给出的文件事实、数字和细节只属于已删除资料，不能再当作依据。',
+    '不要沿用、补全，也不要根据聊天记录猜测或编造那些内容。',
+    '如果本轮问题依赖已删除资料，请直接说明知识库已删除、无法根据资料继续回答。',
+    '只有与资料库无关的一般问题才可以基于你自身知识回答，并且必须说明这不是来自用户知识库。',
+  ].join('\n');
+}
+
+/**
+ * 把约束插在最后一条 user 之前，避免模型继续顺着旧的资料库回答编。
+ * 没有助手历史时不注入，普通未绑定对话保持原样。
+ */
+export function buildRevokedKbMessages(history: ChatMessage[]): ChatMessage[] {
+  const copied = history.map((message) => ({
+    role: message.role,
+    content: message.content,
+  }));
+  const hasAssistant = copied.some((message) => message.role === 'assistant');
+  if (!hasAssistant) {
+    return copied;
+  }
+  let lastUser = -1;
+  for (let i = copied.length - 1; i >= 0; i -= 1) {
+    if (copied[i]?.role === 'user') {
+      lastUser = i;
+      break;
+    }
+  }
+  const notice: ChatMessage = { role: 'system', content: revokedKbPrompt() };
+  if (lastUser < 0) {
+    return [notice, ...copied];
+  }
+  return [...copied.slice(0, lastUser), notice, ...copied.slice(lastUser)];
+}
+
 function buildStatusMessage(
   kbName: string,
   mode: RagPromptMode,

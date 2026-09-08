@@ -12,6 +12,9 @@ export interface ChunkMetadata {
   file_type: string;
   page?: number;
   section_title?: string;
+  /** 评测锚点；生产切分不写。gold 用 slug + anchor，不用随机 chunk id。 */
+  slug?: string;
+  anchor?: string;
 }
 
 export interface ChunkDraft {

@@ -119,6 +119,25 @@ export class ChatStore {
         `ALTER TABLE conversations ADD COLUMN knowledge_base_id TEXT DEFAULT NULL`,
       ); // 添加knowledge_base_id列
     }
+    if (!cols.some((c) => c.name === 'kb_context_revoked')) {
+      this.db.exec(
+        `ALTER TABLE conversations ADD COLUMN kb_context_revoked INTEGER NOT NULL DEFAULT 0`,
+      );
+    }
+    if (!cols.some((c) => c.name === 'kb_used')) {
+      this.db.exec(
+        `ALTER TABLE conversations ADD COLUMN kb_used INTEGER NOT NULL DEFAULT 0`,
+      );
+    }
+    // 旧会话删库/解绑发生在标记上线之前，绑定已是 NULL，只能从助手原文回填。
+    this.db.exec(`
+      UPDATE conversations
+      SET kb_used = 1, kb_context_revoked = 1
+      WHERE id IN (
+        SELECT conversation_id FROM messages
+        WHERE role = 'assistant' AND content LIKE '%根据知识库%'
+      )
+    `);
   }
 
   close(): void {
@@ -253,20 +272,87 @@ export class ChatStore {
     if (knowledgeBaseId !== null && !UUID_RE.test(knowledgeBaseId)) {
       return false;
     }
-    this.db
-      .prepare(`UPDATE conversations SET knowledge_base_id = ? WHERE id = ?`)
-      .run(knowledgeBaseId, conversationId);
+    const previous = this.getConversationKnowledgeBaseId(conversationId);
+    const revoke =
+      knowledgeBaseId === null && previous !== null ? 1 : knowledgeBaseId ? 0 : null;
+    if (knowledgeBaseId) {
+      this.db
+        .prepare(
+          `UPDATE conversations
+           SET knowledge_base_id = ?, kb_context_revoked = 0, kb_used = 1
+           WHERE id = ?`,
+        )
+        .run(knowledgeBaseId, conversationId);
+    } else if (revoke === 1) {
+      this.db
+        .prepare(
+          `UPDATE conversations
+           SET knowledge_base_id = NULL, kb_context_revoked = 1
+           WHERE id = ?`,
+        )
+        .run(conversationId);
+    } else {
+      this.db
+        .prepare(`UPDATE conversations SET knowledge_base_id = ? WHERE id = ?`)
+        .run(knowledgeBaseId, conversationId);
+    }
     return true;
   }
 
-  /** 删库后清掉所有仍指向该 id 的会话绑定。 */
+  /** 曾经检索过知识库。解绑后即使当时没写下 revoked，也不能再沿用旧回答。 */
+  markKnowledgeBaseUsed(conversationId: string): void {
+    if (!this.conversationExists(conversationId)) return;
+    this.db
+      .prepare(`UPDATE conversations SET kb_used = 1 WHERE id = ?`)
+      .run(conversationId);
+  }
+
+  /**
+   * 未绑定知识库时是否必须拒绝模型续写。
+   * 覆盖：删库标记、曾经用过库、以及标记上线前已写入「根据知识库」的旧会话。
+   */
+  mustRefuseUnboundLibraryContinuation(conversationId: string): boolean {
+    if (this.isKnowledgeBaseContextRevoked(conversationId)) return true;
+    const row = this.db
+      .prepare(`SELECT kb_used AS used FROM conversations WHERE id = ?`)
+      .get(conversationId) as { used: number } | undefined;
+    if (row?.used === 1) return true;
+    const grounded = this.db
+      .prepare(
+        `SELECT 1 AS ok FROM messages
+         WHERE conversation_id = ? AND role = 'assistant' AND content LIKE '%根据知识库%'
+         LIMIT 1`,
+      )
+      .get(conversationId) as { ok: number } | undefined;
+    if (!grounded) return false;
+    this.db
+      .prepare(
+        `UPDATE conversations SET kb_used = 1, kb_context_revoked = 1 WHERE id = ?`,
+      )
+      .run(conversationId);
+    return true;
+  }
+
+  /** 删库后：历史里的资料库回答不能再当依据，直到重新绑定知识库。 */
+  isKnowledgeBaseContextRevoked(conversationId: string): boolean {
+    const row = this.db
+      .prepare(
+        `SELECT kb_context_revoked AS revoked FROM conversations WHERE id = ?`,
+      )
+      .get(conversationId) as { revoked: number } | undefined;
+    return row?.revoked === 1;
+  }
+
+  /** 删库后清掉所有仍指向该 id 的会话绑定，并标记不要沿用旧资料上下文。 */
   clearConversationKnowledgeBaseBindings(knowledgeBaseId: string): number {
     if (!UUID_RE.test(knowledgeBaseId)) {
       return 0;
     }
     const result = this.db
       .prepare(
-        `UPDATE conversations SET knowledge_base_id = NULL WHERE knowledge_base_id = ?`,
+        `UPDATE conversations
+         SET knowledge_base_id = NULL, kb_context_revoked = 1
+         WHERE knowledge_base_id = ?`,
       )
       .run(knowledgeBaseId);
     return result.changes;

@@ -1,6 +1,5 @@
 import { useCallback, useEffect, useRef } from 'react';
 import type { Message, ServerMessage } from '@ai-chat/shared';
-import { KNOWLEDGE_BASE_SEARCH_TOOL } from '@ai-chat/shared';
 import { USE_MOCK, MOCK_REPLY_DELAY_MS } from '@/config/app';
 import { generateMockReply, MOCK_INITIAL_MESSAGES } from '@/mocks/chatMock';
 import { parseServerMessage } from '@/apis/websocket/messageParser';
@@ -21,6 +20,7 @@ import { createMessage, useChatStore } from '@/store/useChatStore';
 import { useAuthStore } from '@/store/useAuthStore';
 import { resolveKnowledgeBaseFromCatalog } from '@/components/Layout/Header/knowledgeBaseOptions';
 import { syncStaleKnowledgeBaseBinding } from '@/pages/Chat/components/KnowledgeBase/knowledgeBaseBinding';
+import { retrievalHintFromToolEvent } from '@/pages/Chat/retrievalHint';
 import {
   alignReplyDelta,
   mergeCatchupContent,
@@ -596,15 +596,10 @@ function handleServerMessage(raw: string): void {
       break;
     case 'tool_event':
       if (!isActiveConversation(message.conversationId)) break;
-      if (message.name !== KNOWLEDGE_BASE_SEARCH_TOOL) break;
-      if (message.event === 'start') {
-        useChatStore.getState().setRetrievalHint('正在检索知识库…');
-      } else if (message.event === 'error') {
-        useChatStore
-          .getState()
-          .setRetrievalHint('知识库检索暂不可用，将按普通对话回答');
-      } else {
-        useChatStore.getState().setRetrievalHint(null);
+      {
+        const hint = retrievalHintFromToolEvent(message.name, message.event);
+        if (hint === undefined) break;
+        useChatStore.getState().setRetrievalHint(hint);
       }
       break;
     default:
@@ -738,6 +733,8 @@ function useMockChatService() {
     const { conversationId, history, getPendingAssistant, markConversationGenerating } =
       useChatStore.getState();
     if (nextId === conversationId || history.loading) return;
+
+    useChatStore.getState().setRetrievalHint(null);
 
     // 不停止 —— 保持任务运行；标记以便侧栏显示「生成中」
     if (conversationId && getPendingAssistant()) {
@@ -1033,6 +1030,8 @@ function useRealChatService() {
       markConversationGenerating,
     } = useChatStore.getState();
     if (nextId === conversationId || history.loading) return;
+
+    useChatStore.getState().setRetrievalHint(null);
 
     const client = clientRef.current;
 

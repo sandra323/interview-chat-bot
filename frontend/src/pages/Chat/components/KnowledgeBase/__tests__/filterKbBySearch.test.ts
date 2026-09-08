@@ -26,5 +26,18 @@ describe('filterKbBySearch', () => {
 
   it('filters by name case-insensitively', () => {
     expect(filterKbBySearch(items, '面试')).toEqual([items[1]]);
+    expect(filterKbBySearch(items, 'PROJECT')).toEqual([]);
+  });
+
+  it('does not match description-only text', () => {
+    const withDesc: KnowledgeBase[] = [
+      { ...items[0], description: '含面试关键词' },
+    ];
+    expect(filterKbBySearch(withDesc, '面试')).toEqual([]);
+  });
+
+  it('returns an empty list when nothing matches', () => {
+    expect(filterKbBySearch(items, '不存在')).toEqual([]);
+    expect(filterKbBySearch([], '面试')).toEqual([]);
   });
 });

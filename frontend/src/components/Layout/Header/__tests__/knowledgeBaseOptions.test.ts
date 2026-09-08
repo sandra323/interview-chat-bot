@@ -21,6 +21,10 @@ describe('resolveKnowledgeBaseSelection', () => {
   it('keeps binding when id exists in ready catalog', () => {
     expect(resolveKnowledgeBaseSelection('kb-1', ['kb-1'], true)).toBe('kb-1');
   });
+
+  it('keeps binding when catalog failed to load', () => {
+    expect(resolveKnowledgeBaseSelection('kb-1', [], false)).toBe('kb-1');
+  });
 });
 
 describe('resolveKnowledgeBaseFromCatalog', () => {

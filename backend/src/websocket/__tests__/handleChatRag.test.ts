@@ -15,6 +15,11 @@ import { handleMessage } from '../handleMessage.js';
 import type { RerankedHit } from '../../rag/retrievalTypes.js';
 import { RetrievalUnavailableError } from '../../rag/retrievalErrors.js';
 import {
+  LIBRARY_GONE_REPLY,
+  LIBRARY_NO_HIT_REPLY,
+  LIBRARY_UNAVAILABLE_REPLY,
+} from '../../rag/libraryRefusal.js';
+import {
   resetRetrieveForChatForTests,
   setGetKnowledgeBaseForTests,
   setSearchWithRerankForTests,
@@ -119,6 +124,32 @@ describe('handleChatMessage RAG', () => {
     );
   }
 
+  it('forbids continuing from prior library answers after the bound kb is deleted', async () => {
+    const search = async () => {
+      throw new Error('should not search');
+    };
+    setSearchWithRerankForTests(search as never);
+    const conversationId = getChatStore().createConversation();
+    getChatStore().setConversationKnowledgeBaseId(conversationId, kbId);
+    getChatStore().appendMessage(conversationId, 'user', '库里怎么说');
+    getChatStore().appendMessage(
+      conversationId,
+      'assistant',
+      '资料写着赏花时间是三月',
+    );
+    expect(getChatStore().clearConversationKnowledgeBaseBindings(kbId)).toBe(1);
+
+    await chat({ conversationId, content: '那几点开门' });
+
+    expect(started).toHaveLength(0);
+    expect(sent.some((m) => m.type === 'reply_end' && m.content === LIBRARY_GONE_REPLY)).toBe(
+      true,
+    );
+    const page = getChatStore().listMessagesPage(conversationId);
+    expect(page.items.at(-1)?.content).toBe(LIBRARY_GONE_REPLY);
+    expect(sent.some((m) => m.type === 'tool_event')).toBe(false);
+  });
+
   it('does not inject RAG when no knowledge base is bound', async () => {
     const search = async () => {
       throw new Error('should not search');
@@ -184,9 +215,10 @@ describe('handleChatMessage RAG', () => {
     const conversationId = getChatStore().createConversation();
     getChatStore().setConversationKnowledgeBaseId(conversationId, kbId);
     await chat({ conversationId });
-    const text = started[0]?.llmMessages.map((m) => m.content).join('\n') ?? '';
-    expect(text).toContain('未在知识库中找到');
-    expect(text).toContain('默认资料库');
+    expect(started).toHaveLength(0);
+    expect(sent.some((m) => m.type === 'reply_end' && m.content === LIBRARY_NO_HIT_REPLY)).toBe(
+      true,
+    );
   });
 
   it('still generates when retrieval is unavailable', async () => {
@@ -204,13 +236,13 @@ describe('handleChatMessage RAG', () => {
     const conversationId = getChatStore().createConversation();
     getChatStore().setConversationKnowledgeBaseId(conversationId, kbId);
     await chat({ conversationId });
-    expect(started).toHaveLength(1);
+    expect(started).toHaveLength(0);
     expect(sent.some((m) => m.type === 'tool_event' && m.event === 'error')).toBe(
       true,
     );
-    expect(sent.some((m) => m.type === 'reply_start')).toBe(true);
-    const text = started[0]?.llmMessages.map((m) => m.content).join('\n') ?? '';
-    expect(text).toContain('暂时不可用');
+    expect(sent.some((m) => m.type === 'reply_end' && m.content === LIBRARY_UNAVAILABLE_REPLY)).toBe(
+      true,
+    );
   });
 
   it('ignores a client knowledgeBaseId for another owner when unbound', async () => {
@@ -277,9 +309,10 @@ describe('handleChatMessage RAG', () => {
     expect(
       sent.some((m) => m.type === 'tool_event' && m.event === 'start'),
     ).toBe(false);
-    const text = started[0]?.llmMessages.map((m) => m.content).join('\n') ?? '';
-    expect(text).not.toContain('<<<KB>>>');
-    expect(text).not.toContain('已不存在或无权使用');
+    expect(started).toHaveLength(0);
+    expect(sent.some((m) => m.type === 'reply_end' && m.content === LIBRARY_GONE_REPLY)).toBe(
+      true,
+    );
   });
 
   it('lazy-binds an owned client knowledgeBaseId when the conversation is unbound', async () => {

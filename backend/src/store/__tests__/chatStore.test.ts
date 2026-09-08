@@ -210,6 +210,22 @@ describe('ChatStore', () => {
     expect(store.clearConversationKnowledgeBaseBindings(kbId)).toBe(2);
     expect(store.getConversationKnowledgeBaseId(conversationA)).toBeNull();
     expect(store.getConversationKnowledgeBaseId(conversationB)).toBeNull();
+    expect(store.isKnowledgeBaseContextRevoked(conversationA)).toBe(true);
+    expect(store.isKnowledgeBaseContextRevoked(conversationB)).toBe(true);
+    expect(store.setConversationKnowledgeBaseId(conversationA, kbId)).toBe(true);
+    expect(store.isKnowledgeBaseContextRevoked(conversationA)).toBe(false);
+    store.close();
+  });
+
+  it('refuses unbound continuation when older assistant text cited the library', () => {
+    const store = createStore();
+    const conversationId = store.createConversation();
+    store.appendMessage(conversationId, 'user', '她在哪上学');
+    store.appendMessage(conversationId, 'assistant', '根据知识库中的简历信息，曾在某大学就读。');
+    expect(store.getConversationKnowledgeBaseId(conversationId)).toBeNull();
+    expect(store.isKnowledgeBaseContextRevoked(conversationId)).toBe(false);
+    expect(store.mustRefuseUnboundLibraryContinuation(conversationId)).toBe(true);
+    expect(store.isKnowledgeBaseContextRevoked(conversationId)).toBe(true);
     store.close();
   });
 });

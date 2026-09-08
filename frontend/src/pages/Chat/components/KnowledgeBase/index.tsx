@@ -160,6 +160,9 @@ export default function KnowledgeBase() {
         cancelButtonProps: { type: 'default' },
         onOk: async () => {
           try {
+            // remove() 会先把当前绑定清成 null，必须在此之前记下原绑定，否则解绑 PATCH 会被跳过。
+            const boundBeforeRemove = useChatStore.getState().knowledgeBaseId;
+            const conversationId = useChatStore.getState().conversationId;
             await deleteKnowledgeBase(kb.id);
             remove(kb.id);
             if (activeKbId === kb.id) {
@@ -167,8 +170,8 @@ export default function KnowledgeBase() {
             }
             await unbindCurrentChatIfDeletedKb(
               kb.id,
-              useChatStore.getState().knowledgeBaseId,
-              useChatStore.getState().conversationId,
+              boundBeforeRemove,
+              conversationId,
               {
                 useMock: USE_MOCK,
                 setKnowledgeBaseId: useChatStore.getState().setKnowledgeBaseId,
