@@ -2,6 +2,7 @@ import type { KnowledgeDocument, KnowledgeDocumentPage } from '@ai-chat/shared';
 import { DOCUMENT_PAGE_SIZE } from '@ai-chat/shared';
 import { apiDelete, apiGet, apiGetBlob, apiPost, apiUpload } from './http/client';
 
+/** 兼容旧客户端的跨库列表。Phase 8 资料库 UI 请用 fetchKnowledgeBaseDocuments。 */
 export async function fetchDocuments(options?: {
   q?: string;
   page?: number;
@@ -20,6 +21,7 @@ export async function fetchDocuments(options?: {
   return apiGet<KnowledgeDocumentPage>(`/api/documents?${query}`);
 }
 
+/** 写入「默认资料库」。Phase 8 资料库 UI 请用 uploadKnowledgeBaseDocument。 */
 export async function uploadDocument(
   file: File,
   onProgress?: (percent: number) => void,

@@ -536,6 +536,25 @@ async function resolveBoundKnowledgeBaseId(input: {
       : '';
 
   if (bound) {
+    if (input.ownerUsername) {
+      try {
+        const owned = await lookupKnowledgeBaseForOwner(
+          bound,
+          input.ownerUsername,
+        );
+        if (!owned) {
+          store.setConversationKnowledgeBaseId(input.conversationId, null);
+          return null;
+        }
+      } catch (error) {
+        logger.warn('bound knowledge base lookup failed', {
+          conversationId: input.conversationId,
+          error: error instanceof Error ? error.message : 'unknown',
+        });
+        store.setConversationKnowledgeBaseId(input.conversationId, null);
+        return null;
+      }
+    }
     if (client && client !== bound) {
       logger.warn('client knowledgeBaseId ignored; conversation binding wins', {
         conversationId: input.conversationId,

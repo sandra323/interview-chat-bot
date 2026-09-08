@@ -7,6 +7,13 @@ export type AuthFailureReason = 'missing_token' | 'unauthorized' | 'expired';
 
 export type MessageHandler = (data: string) => void;
 export type StatusHandler = (status: WebSocketStatus) => void;
+export type ReconnectAttemptHandler = (
+  attempt: number,
+  maxAttempts: number,
+) => void;
+
+/** 断线后自动重连上限（指数退避，放弃后不再 toast） */
+export const WS_MAX_RECONNECT_ATTEMPTS = 5;
 
 export interface WebSocketClientOptions {
   /**
@@ -25,6 +32,10 @@ export interface WebSocketClientOptions {
    * 跳过 WS 鉴权握手（仅 UI / 测试）。勿用于受保护 backend。
    */
   skipAuth?: boolean;
+  /** 定时重连即将发起第 N 次尝试（1..maxAttempts） */
+  onReconnectAttempt?: ReconnectAttemptHandler;
+  /** 已达重连上限，不再自动重连 */
+  onReconnectGiveUp?: () => void;
 }
 
 export class WebSocketClient {
@@ -35,7 +46,8 @@ export class WebSocketClient {
   private statusHandler: StatusHandler | null = null;
   private manualClose = false;
   private reconnectAttempts = 0;
-  private maxReconnectAttempts = 5;
+  private maxReconnectAttempts = WS_MAX_RECONNECT_ATTEMPTS;
+  private reconnectExhausted = false;
   private reconnectTimer: ReturnType<typeof setTimeout> | null = null;
   /** skipAuth 或收到服务端 `auth_ok` 前为 false。 */
   private authReady = false;
@@ -71,6 +83,7 @@ export class WebSocketClient {
     ws.onopen = () => {
       if (this.ws !== ws) return;
       this.reconnectAttempts = 0;
+      this.reconnectExhausted = false;
       if (this.options.skipAuth) {
         this.authReady = true;
         this.setStatus('open');
@@ -118,6 +131,7 @@ export class WebSocketClient {
     this.manualClose = true;
     this.clearReconnectTimer();
     this.reconnectAttempts = 0;
+    this.reconnectExhausted = false;
     this.teardownSocket();
     this.authReady = false;
     this.connect();
@@ -210,7 +224,12 @@ export class WebSocketClient {
   }
 
   private scheduleReconnect(): void {
+    if (this.reconnectExhausted) {
+      return;
+    }
     if (this.reconnectAttempts >= this.maxReconnectAttempts) {
+      this.reconnectExhausted = true;
+      this.options.onReconnectGiveUp?.();
       return;
     }
 
@@ -222,6 +241,10 @@ export class WebSocketClient {
 
     this.clearReconnectTimer();
     this.reconnectTimer = setTimeout(() => {
+      this.options.onReconnectAttempt?.(
+        this.reconnectAttempts,
+        this.maxReconnectAttempts,
+      );
       this.connect();
     }, delay);
   }

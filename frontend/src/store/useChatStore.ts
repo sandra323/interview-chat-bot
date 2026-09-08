@@ -7,6 +7,8 @@ interface UIState {
   loading: boolean;
   error: string | null;
   connectionStatus: ConnectionStatus;
+  /** 触发 ConnectionBanner 短暂重试 toast；0 表示无提示 */
+  wsReconnectAttempt: number;
 }
 
 interface HistoryState {
@@ -55,6 +57,7 @@ interface ChatState {
   setLoading: (loading: boolean) => void;
   setError: (error: string | null) => void;
   setConnectionStatus: (status: ConnectionStatus) => void;
+  setWsReconnectAttempt: (attempt: number) => void;
   setHistory: (partial: Partial<HistoryState>) => void;
   markConversationGenerating: (id: string) => void;
   clearConversationGenerating: (id: string) => void;
@@ -102,6 +105,7 @@ export const useChatStore = create<ChatState>()(
         loading: false,
         error: null,
         connectionStatus: 'closed',
+        wsReconnectAttempt: 0,
       },
       history: { ...INITIAL_HISTORY },
       generatingConversationIds: [],
@@ -158,7 +162,16 @@ export const useChatStore = create<ChatState>()(
 
       setConnectionStatus: (connectionStatus) =>
         set((state) => ({
-          ui: { ...state.ui, connectionStatus },
+          ui: {
+            ...state.ui,
+            connectionStatus,
+            ...(connectionStatus === 'open' ? { wsReconnectAttempt: 0 } : {}),
+          },
+        })),
+
+      setWsReconnectAttempt: (wsReconnectAttempt) =>
+        set((state) => ({
+          ui: { ...state.ui, wsReconnectAttempt },
         })),
 
       setHistory: (partial) =>

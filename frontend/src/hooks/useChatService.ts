@@ -14,10 +14,13 @@ import { WebSocketClient } from '@/apis/websocket/client';
 import {
   fetchConversationMessages,
   HISTORY_PAGE_SIZE,
+  patchConversation,
   type ConversationMessageItem,
 } from '@/apis/conversations';
 import { createMessage, useChatStore } from '@/store/useChatStore';
 import { useAuthStore } from '@/store/useAuthStore';
+import { resolveKnowledgeBaseFromCatalog } from '@/components/Layout/Header/knowledgeBaseOptions';
+import { syncStaleKnowledgeBaseBinding } from '@/pages/Chat/components/KnowledgeBase/knowledgeBaseBinding';
 import {
   alignReplyDelta,
   mergeCatchupContent,
@@ -277,7 +280,7 @@ async function syncHistoryPaginationMeta(): Promise<void> {
     });
     if (useChatStore.getState().conversationId !== conversationId) return;
 
-    useChatStore.getState().setKnowledgeBaseId(page.knowledgeBaseId ?? null);
+    applyServerKnowledgeBaseBinding(conversationId, page.knowledgeBaseId);
 
     const localCount = useChatStore.getState().messages.length;
     setHistory({
@@ -289,6 +292,19 @@ async function syncHistoryPaginationMeta(): Promise<void> {
   } catch {
     // 非致命 —— 用户仍可聊天；更早页可能不可用，直至切换对话
   }
+}
+
+function applyServerKnowledgeBaseBinding(
+  conversationId: string,
+  serverKnowledgeBaseId: string | null | undefined,
+): void {
+  useChatStore
+    .getState()
+    .setKnowledgeBaseId(resolveKnowledgeBaseFromCatalog(serverKnowledgeBaseId));
+  void syncStaleKnowledgeBaseBinding(conversationId, serverKnowledgeBaseId, {
+    useMock: USE_MOCK,
+    patchConversation,
+  });
 }
 
 function seedMockMessages(): void {
@@ -743,7 +759,7 @@ function useMockChatService() {
       if (epoch !== navEpochRef.current) return;
 
       useChatStore.getState().setConversationId(nextId);
-      useChatStore.getState().setKnowledgeBaseId(page.knowledgeBaseId ?? null);
+      applyServerKnowledgeBaseBinding(nextId, page.knowledgeBaseId);
       useChatStore.getState().setMessages(mapHistoryItems(page.items));
       useChatStore.getState().setHistory({
         page: page.page,
@@ -834,6 +850,12 @@ function useRealChatService() {
       },
       // USE_MOCK 使用独立 mock 服务 —— 连接真实 backend 时不应进入此分支。
       skipAuth: false,
+      onReconnectAttempt: (attempt) => {
+        useChatStore.getState().setWsReconnectAttempt(attempt);
+      },
+      onReconnectGiveUp: () => {
+        useChatStore.getState().setWsReconnectAttempt(0);
+      },
     });
     clientRef.current = client;
     chatClientRef = client;
@@ -1034,7 +1056,7 @@ function useRealChatService() {
       if (epoch !== navEpochRef.current) return;
 
       useChatStore.getState().setConversationId(nextId);
-      useChatStore.getState().setKnowledgeBaseId(page.knowledgeBaseId ?? null);
+      applyServerKnowledgeBaseBinding(nextId, page.knowledgeBaseId);
       useChatStore.getState().setMessages(mapHistoryItems(page.items));
       useChatStore.getState().setHistory({
         page: page.page,

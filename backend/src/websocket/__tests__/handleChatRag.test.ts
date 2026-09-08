@@ -265,7 +265,7 @@ describe('handleChatMessage RAG', () => {
     expect(started[0]?.llmMessages[1]?.content).toContain('春季赏花攻略');
   });
 
-  it('clears the conversation binding and injects kb_missing copy', async () => {
+  it('clears stale bindings without retrieval when the knowledge base is gone', async () => {
     setGetKnowledgeBaseForTests(async () => null);
     setSearchWithRerankForTests(async () => {
       throw new Error('should not search');
@@ -274,9 +274,12 @@ describe('handleChatMessage RAG', () => {
     getChatStore().setConversationKnowledgeBaseId(conversationId, kbId);
     await chat({ conversationId });
     expect(getChatStore().getConversationKnowledgeBaseId(conversationId)).toBeNull();
+    expect(
+      sent.some((m) => m.type === 'tool_event' && m.event === 'start'),
+    ).toBe(false);
     const text = started[0]?.llmMessages.map((m) => m.content).join('\n') ?? '';
-    expect(text).toContain('已不存在或无权使用');
     expect(text).not.toContain('<<<KB>>>');
+    expect(text).not.toContain('已不存在或无权使用');
   });
 
   it('lazy-binds an owned client knowledgeBaseId when the conversation is unbound', async () => {

@@ -259,6 +259,19 @@ export class ChatStore {
     return true;
   }
 
+  /** 删库后清掉所有仍指向该 id 的会话绑定。 */
+  clearConversationKnowledgeBaseBindings(knowledgeBaseId: string): number {
+    if (!UUID_RE.test(knowledgeBaseId)) {
+      return 0;
+    }
+    const result = this.db
+      .prepare(
+        `UPDATE conversations SET knowledge_base_id = NULL WHERE knowledge_base_id = ?`,
+      )
+      .run(knowledgeBaseId);
+    return result.changes;
+  }
+
   /**
    * 设置自定义侧边栏标题。不更新 updated_at（保持列表顺序）。
    * 会话不存在时返回 false。

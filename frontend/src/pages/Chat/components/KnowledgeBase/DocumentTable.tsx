@@ -7,6 +7,7 @@ import {
   type KnowledgeDocument,
 } from '@ai-chat/shared';
 import { formatDateYYYYMMDD, formatFileSize } from '@/utils/formatTime';
+import { formatProgress, isBusy, progressStatus } from './documentStatus';
 import styles from './index.module.less';
 
 interface DocumentTableProps {
@@ -21,46 +22,6 @@ interface DocumentTableProps {
   onPreview: (doc: KnowledgeDocument) => void;
   onDelete: (doc: KnowledgeDocument) => void;
   onReprocess: (doc: KnowledgeDocument) => void;
-}
-
-function progressStatus(
-  status: KnowledgeDocument['status'],
-): 'active' | 'success' | 'exception' | 'normal' {
-  if (status === 'failed') return 'exception';
-  if (status === 'ready') return 'success';
-  if (
-    status === 'uploading' ||
-    status === 'pending' ||
-    status === 'processing'
-  ) {
-    return 'active';
-  }
-  return 'normal';
-}
-
-function isBusy(status: KnowledgeDocument['status']): boolean {
-  return (
-    status === 'queued' ||
-    status === 'uploading' ||
-    status === 'pending' ||
-    status === 'processing'
-  );
-}
-
-function progressHint(status: KnowledgeDocument['status']): string | null {
-  if (status === 'queued') return '排队中';
-  if (status === 'uploading') return '上传中';
-  if (status === 'pending' || status === 'processing') return '处理中';
-  return null;
-}
-
-function formatProgress(
-  percent: number | undefined,
-  status: KnowledgeDocument['status'],
-): string {
-  const safe = Number.isFinite(percent) ? Math.round(percent!) : 0;
-  const hint = progressHint(status);
-  return hint ? `${hint} ${safe}%` : `${safe}%`;
 }
 
 export default function DocumentTable({
@@ -110,7 +71,7 @@ export default function DocumentTable({
         render: (sizeBytes: number) => formatFileSize(sizeBytes),
       },
       {
-        title: '上传进度',
+        title: '状态',
         dataIndex: 'progress',
         width: '20%',
         render: (_value, record) => (

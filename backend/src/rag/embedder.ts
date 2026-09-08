@@ -9,11 +9,54 @@ import {
   EMBED_TIMEOUT_MS,
 } from './chunkConfig.js';
 import {
+  EmbedAuthError,
   EmbedConfigError,
   EmbedQuotaError,
   EmbedResponseError,
   EmbedUnavailableError,
 } from './ingestErrors.js';
+
+function openAiClientOptions(): { apiKey: string; baseURL?: string } {
+  const apiKey = process.env.OPENAI_API_KEY?.trim() ?? '';
+  const baseURL = process.env.OPENAI_BASE_URL?.trim();
+  return baseURL ? { apiKey, baseURL } : { apiKey };
+}
+
+function isAuthError(error: unknown): boolean {
+  if (typeof error !== 'object' || error === null) {
+    return false;
+  }
+  const status = Number((error as { status?: unknown }).status);
+  return status === 401 || status === 403;
+}
+
+function isNetworkError(error: unknown): boolean {
+  if (!(error instanceof Error)) {
+    return false;
+  }
+  return /ECONNRESET|ECONNREFUSED|ETIMEDOUT|ENOTFOUND|fetch failed|socket hang up|SSL/i.test(
+    error.message,
+  );
+}
+
+function classifyOpenAiEmbedError(error: unknown): Error {
+  if (isQuotaExhausted(error)) {
+    return new EmbedQuotaError();
+  }
+  if (isAuthError(error)) {
+    return new EmbedAuthError(error);
+  }
+  if (isNetworkError(error)) {
+    return new EmbedUnavailableError(
+      error,
+      '无法连接向量服务，请检查网络或在 .env.local 配置 OPENAI_BASE_URL',
+    );
+  }
+  if (isRetryable(error)) {
+    return new EmbedUnavailableError(error);
+  }
+  return new EmbedUnavailableError(error);
+}
 
 export type EmbedTextsFn = (texts: string[]) => Promise<number[][]>;
 
@@ -107,6 +150,7 @@ async function requestBatchWithRetry(
     } catch (error) {
       if (
         error instanceof EmbedConfigError ||
+        error instanceof EmbedAuthError ||
         error instanceof EmbedResponseError ||
         error instanceof EmbedQuotaError
       ) {
@@ -128,12 +172,16 @@ async function requestBatchWithRetry(
 }
 
 async function requestOpenAIBatch(batch: string[]): Promise<number[][]> {
-  const apiKey = process.env.OPENAI_API_KEY?.trim() ?? '';
+  const { apiKey, baseURL } = openAiClientOptions();
   if (!apiKey) {
     throw new EmbedConfigError();
   }
   const { model } = embeddingModelInfo();
-  const client = new OpenAI({ apiKey, timeout: EMBED_TIMEOUT_MS });
+  const client = new OpenAI({
+    apiKey,
+    timeout: EMBED_TIMEOUT_MS,
+    ...(baseURL ? { baseURL } : {}),
+  });
   try {
     const response = await client.embeddings.create({
       model,
@@ -141,13 +189,7 @@ async function requestOpenAIBatch(batch: string[]): Promise<number[][]> {
     });
     return response.data.map((item) => item.embedding);
   } catch (error) {
-    if (isQuotaExhausted(error)) {
-      throw new EmbedQuotaError();
-    }
-    if (isRetryable(error)) {
-      throw new EmbedUnavailableError(error);
-    }
-    throw new EmbedUnavailableError(error);
+    throw classifyOpenAiEmbedError(error);
   }
 }
 

@@ -5,6 +5,8 @@ import {
   setUnauthorizedHandler,
 } from '@/apis/http/tokenBridge';
 import { useChatStore } from './useChatStore';
+import { useKnowledgeBaseCatalog } from './useKnowledgeBaseCatalog';
+import { writeLibraryActiveKb, writePersistedMainView } from './librarySession';
 
 export type AuthStatus = 'unknown' | 'authenticated' | 'anonymous';
 
@@ -76,6 +78,9 @@ export const useAuthStore = create<AuthState>()(
         chat.clearChat();
         chat.setLoading(false);
         useChatStore.setState({ generatingConversationIds: [] });
+        useKnowledgeBaseCatalog.getState().reset();
+        writeLibraryActiveKb(null);
+        writePersistedMainView('chat');
         for (const listener of forceLogoutListeners) {
           try {
             listener({ reason: options?.reason });

@@ -37,13 +37,30 @@ export class EmbedConfigError extends Error {
   }
 }
 
-export class EmbedUnavailableError extends Error {
-  readonly userMessage = '向量服务暂时不可用，请稍后重试';
+export class EmbedAuthError extends Error {
+  readonly userMessage =
+    'OpenAI API 密钥无效或已过期，请检查 OPENAI_API_KEY';
 
   constructor(cause?: unknown) {
+    super('ingest-embed-auth-failed');
+    this.name = 'EmbedAuthError';
+    if (cause instanceof Error) {
+      this.cause = cause;
+    }
+  }
+}
+
+export class EmbedUnavailableError extends Error {
+  readonly userMessage: string;
+
+  constructor(cause?: unknown, userMessage?: string) {
     super('ingest-embed-unavailable');
     this.name = 'EmbedUnavailableError';
+    this.userMessage =
+      userMessage ?? '向量服务暂时不可用，请稍后重试';
     if (cause instanceof Error) {
+      this.cause = cause;
+    } else if (cause !== undefined) {
       this.cause = cause;
     }
   }
@@ -89,6 +106,7 @@ export function userMessageForIngestError(error: unknown): string {
     error instanceof ChunkEmptyError ||
     error instanceof ChunkTooLongError ||
     error instanceof EmbedConfigError ||
+    error instanceof EmbedAuthError ||
     error instanceof EmbedQuotaError ||
     error instanceof EmbedUnavailableError ||
     error instanceof EmbedResponseError ||

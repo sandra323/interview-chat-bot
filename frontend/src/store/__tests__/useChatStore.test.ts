@@ -9,7 +9,12 @@ describe('useChatStore', () => {
       model: 'deepseek-v4-flash',
       knowledgeBaseId: null,
       retrievalHint: null,
-      ui: { loading: false, error: null, connectionStatus: 'closed' },
+      ui: {
+        loading: false,
+        error: null,
+        connectionStatus: 'closed',
+        wsReconnectAttempt: 0,
+      },
       _hasHydrated: true,
     });
   });

@@ -9,6 +9,7 @@ import {
 import { ApiError, userFacingApiMessage } from '@/apis/http/client';
 import { AUTH_STORAGE_KEY, useAuthStore } from '../useAuthStore';
 import { createMessage, useChatStore } from '../useChatStore';
+import { useKnowledgeBaseCatalog } from '../useKnowledgeBaseCatalog';
 
 describe('useAuthStore', () => {
   beforeEach(() => {
@@ -25,7 +26,12 @@ describe('useAuthStore', () => {
       conversationId: null,
       conversationTitle: null,
       model: 'deepseek-v4-flash',
-      ui: { loading: false, error: null, connectionStatus: 'closed' },
+      ui: {
+        loading: false,
+        error: null,
+        connectionStatus: 'closed',
+        wsReconnectAttempt: 0,
+      },
       generatingConversationIds: [],
       _hasHydrated: true,
     });
@@ -66,6 +72,20 @@ describe('useAuthStore', () => {
     useChatStore.getState().addMessage(createMessage('user', 'hi'));
     useChatStore.getState().setConversationId('c1');
     useChatStore.getState().setConversationTitle('标题');
+    useKnowledgeBaseCatalog.setState({
+      items: [
+        {
+          id: 'kb-1',
+          name: '库',
+          description: '',
+          createdAt: 1,
+          updatedAt: 1,
+        },
+      ],
+      status: 'ready',
+      error: null,
+    });
+    sessionStorage.setItem('library-active-kb', 'kb-1');
 
     useAuthStore.getState().forceLogoutLocal({ reason: 'logout' });
 
@@ -74,6 +94,9 @@ describe('useAuthStore', () => {
     expect(useChatStore.getState().messages).toHaveLength(0);
     expect(useChatStore.getState().conversationId).toBeNull();
     expect(useChatStore.getState().conversationTitle).toBeNull();
+    expect(useKnowledgeBaseCatalog.getState().items).toEqual([]);
+    expect(useKnowledgeBaseCatalog.getState().status).toBe('idle');
+    expect(sessionStorage.getItem('library-active-kb')).toBeNull();
   });
 
   it('unauthorized notify triggers forceLogoutLocal', () => {

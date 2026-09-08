@@ -199,4 +199,17 @@ describe('ChatStore', () => {
     expect(store.listMessagesPage(conversationId).knowledgeBaseId).toBe(kbId);
     store.close();
   });
+
+  it('clears all conversation bindings for a deleted knowledge base id', () => {
+    const store = createStore();
+    const kbId = 'bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb';
+    const conversationA = store.createConversation();
+    const conversationB = store.createConversation();
+    store.setConversationKnowledgeBaseId(conversationA, kbId);
+    store.setConversationKnowledgeBaseId(conversationB, kbId);
+    expect(store.clearConversationKnowledgeBaseBindings(kbId)).toBe(2);
+    expect(store.getConversationKnowledgeBaseId(conversationA)).toBeNull();
+    expect(store.getConversationKnowledgeBaseId(conversationB)).toBeNull();
+    store.close();
+  });
 });

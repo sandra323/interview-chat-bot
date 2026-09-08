@@ -154,4 +154,68 @@ describe('WebSocketClient auth handshake', () => {
     socket.emitMessage({ type: 'connected', connectionId: 'c1' });
     expect(socket.sent).toEqual([]);
   });
+
+  it('stops reconnecting after max attempts and notifies give up', async () => {
+    vi.useFakeTimers();
+
+    // 连接失败：只触发 onclose，不触发 onopen（否则会重置重试计数）
+    class FailingWebSocket {
+      static OPEN = 1;
+      static CONNECTING = 0;
+      static CLOSED = 3;
+      static instances: FailingWebSocket[] = [];
+
+      readyState = FailingWebSocket.CONNECTING;
+      onopen: ((ev?: unknown) => void) | null = null;
+      onmessage: ((ev: { data: string }) => void) | null = null;
+      onclose: (() => void) | null = null;
+      onerror: (() => void) | null = null;
+      sent: string[] = [];
+
+      constructor(public url: string) {
+        FailingWebSocket.instances.push(this);
+        queueMicrotask(() => {
+          this.readyState = FailingWebSocket.CLOSED;
+          this.onclose?.();
+        });
+      }
+
+      send(data: string) {
+        this.sent.push(data);
+      }
+
+      close() {
+        this.readyState = FailingWebSocket.CLOSED;
+        this.onclose?.();
+      }
+    }
+    // @ts-expect-error 测试桩
+    globalThis.WebSocket = FailingWebSocket;
+
+    const attempts: number[] = [];
+    const onReconnectGiveUp = vi.fn();
+    const client = new WebSocketClient('ws://test/ws', {
+      skipAuth: true,
+      onReconnectAttempt: (attempt) => {
+        attempts.push(attempt);
+      },
+      onReconnectGiveUp,
+    });
+    client.connect();
+    await Promise.resolve();
+    expect(FailingWebSocket.instances.length).toBe(1);
+
+    for (let i = 0; i < 8; i += 1) {
+      await vi.advanceTimersByTimeAsync(20_000);
+      await Promise.resolve();
+    }
+
+    expect(attempts).toEqual([1, 2, 3, 4, 5]);
+    expect(onReconnectGiveUp).toHaveBeenCalledTimes(1);
+    const countAfterGiveUp = FailingWebSocket.instances.length;
+    await vi.advanceTimersByTimeAsync(60_000);
+    await Promise.resolve();
+    expect(FailingWebSocket.instances.length).toBe(countAfterGiveUp);
+    vi.useRealTimers();
+  });
 });

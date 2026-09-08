@@ -1,6 +1,6 @@
 import { Router } from 'express';
 import type { KnowledgeBase } from '@ai-chat/shared';
-import { ApiCode, DOCUMENT_PAGE_SIZE } from '@ai-chat/shared';
+import { ApiCode, DOCUMENT_PAGE_SIZE, KB_NAME_MAX } from '@ai-chat/shared';
 import { requireAuth } from '../auth/middleware.js';
 import { sendFail, sendSuccess } from '../http/apiResponse.js';
 import { logger } from '../utils/logger.js';
@@ -14,6 +14,7 @@ import {
 import {
   createKnowledgeBase,
   deleteForOwner,
+  findByNameForOwner,
   getByIdForOwner,
   listByOwner,
   updateForOwner,
@@ -23,9 +24,10 @@ import {
   listPageForKnowledgeBase,
   listStoragePathsForKnowledgeBase,
 } from '../rag/pgDocumentStore.js';
+import { getChatStore } from '../store/chatStore.js';
 
-const NAME_MAX = 100;
 const DESCRIPTION_MAX = 2000;
+const DUPLICATE_NAME_MSG = '哎呀，已经有同名知识库了，请换个名称';
 
 function toPublicKnowledgeBase(row: KnowledgeBaseRow): KnowledgeBase {
   return {
@@ -42,10 +44,19 @@ function parseName(raw: unknown): string | null {
     return null;
   }
   const name = raw.trim();
-  if (!name || name.length > NAME_MAX) {
+  if (!name || name.length > KB_NAME_MAX) {
     return null;
   }
   return name;
+}
+
+async function isDuplicateName(
+  ownerUsername: string,
+  name: string,
+  exceptId?: string,
+): Promise<boolean> {
+  const existing = await findByNameForOwner(ownerUsername, name);
+  return Boolean(existing && existing.id !== exceptId);
 }
 
 function parseDescription(raw: unknown): string | null {
@@ -128,6 +139,14 @@ export function createKnowledgeBasesRouter(pgEnabled: boolean): Router {
           return;
         }
         description = parsed;
+      }
+      if (await isDuplicateName(ownerUsername, name)) {
+        sendFail(res, {
+          code: ApiCode.BAD_REQUEST,
+          msg: DUPLICATE_NAME_MSG,
+          httpStatus: 400,
+        });
+        return;
       }
       const row = await createKnowledgeBase(ownerUsername, name, description);
       sendSuccess(res, toPublicKnowledgeBase(row));
@@ -345,7 +364,17 @@ export function createKnowledgeBasesRouter(pgEnabled: boolean): Router {
         return;
       }
 
-      const updated = await updateForOwner(routeParam(req, 'id'), ownerUsername, patch);
+      const kbId = routeParam(req, 'id');
+      if (patch.name && (await isDuplicateName(ownerUsername, patch.name, kbId))) {
+        sendFail(res, {
+          code: ApiCode.BAD_REQUEST,
+          msg: DUPLICATE_NAME_MSG,
+          httpStatus: 400,
+        });
+        return;
+      }
+
+      const updated = await updateForOwner(kbId, ownerUsername, patch);
       if (!updated) {
         sendFail(res, {
           code: ApiCode.NOT_FOUND,
@@ -401,6 +430,8 @@ export function createKnowledgeBasesRouter(pgEnabled: boolean): Router {
         });
         return;
       }
+
+      getChatStore().clearConversationKnowledgeBaseBindings(kb.id);
 
       const storage = getFileStorage();
       for (const relativePath of storagePaths) {

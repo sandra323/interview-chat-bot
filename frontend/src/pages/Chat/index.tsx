@@ -5,11 +5,17 @@ import { MODEL_OPTIONS } from '@/config/models';
 import Header from '@/components/Layout/Header';
 import Main from '@/components/Layout/Main';
 import ConnectionBanner from '@/components/ConnectionBanner';
-import { fetchKnowledgeBases } from '@/apis/knowledgeBases';
 import { patchConversation } from '@/apis/conversations';
+import { bindKnowledgeBaseChange } from '@/pages/Chat/components/KnowledgeBase/knowledgeBaseBinding';
+import { resolveKnowledgeBaseFromCatalog } from '@/components/Layout/Header/knowledgeBaseOptions';
 import { userFacingApiMessage } from '@/apis/http/client';
 import { useChatService } from '@/hooks/useChatService';
 import { useChatStore } from '@/store/useChatStore';
+import {
+  readPersistedMainView,
+  writePersistedMainView,
+} from '@/store/librarySession';
+import { useKnowledgeBaseCatalog } from '@/store/useKnowledgeBaseCatalog';
 import Sidebar from './components/Sidebar';
 import { getMainViewChrome, MainView } from './mainView';
 import { renderMainView } from './renderMainView';
@@ -18,7 +24,14 @@ import styles from './index.module.less';
 export default function ChatPage() {
   const [sidebarOpen, setSidebarOpen] = useState(true);
   const [historyRefreshKey, setHistoryRefreshKey] = useState(0);
-  const [mainView, setMainView] = useState<MainView>(MainView.Chat);
+  const [mainView, setMainViewState] = useState<MainView>(() => {
+    const persisted = readPersistedMainView();
+    return persisted === 'library' ? MainView.Library : MainView.Chat;
+  });
+  const setMainView = useCallback((view: MainView) => {
+    setMainViewState(view);
+    writePersistedMainView(view === MainView.Library ? 'library' : 'chat');
+  }, []);
   const wasGeneratingRef = useRef(false);
   const skipInitialConvRefreshRef = useRef(true);
   const {
@@ -50,9 +63,40 @@ export default function ChatPage() {
   const syncGeneratingFromServer = useChatStore(
     (s) => s.syncGeneratingFromServer,
   );
-  const [kbOptions, setKbOptions] = useState<{ value: string; label: string }[]>(
-    [],
+  const catalogItems = useKnowledgeBaseCatalog((s) => s.items);
+  const catalogStatus = useKnowledgeBaseCatalog((s) => s.status);
+  const loadCatalog = useKnowledgeBaseCatalog((s) => s.load);
+  const kbOptions = useMemo(
+    () => catalogItems.map((kb) => ({ value: kb.id, label: kb.name })),
+    [catalogItems],
   );
+  const catalogReady = catalogStatus === 'ready';
+  const effectiveKnowledgeBaseId = useMemo(
+    () => resolveKnowledgeBaseFromCatalog(knowledgeBaseId),
+    [catalogItems, catalogStatus, knowledgeBaseId],
+  );
+
+  useEffect(() => {
+    if (!catalogReady || effectiveKnowledgeBaseId === knowledgeBaseId) {
+      return;
+    }
+    bindKnowledgeBaseChange(null, knowledgeBaseId, {
+      conversationId: useChatStore.getState().conversationId,
+      useMock: USE_MOCK,
+      setKnowledgeBaseId,
+      patchConversation,
+      onPatchError: (error: unknown) => {
+        antdMessage.error(
+          userFacingApiMessage(error, '哎呀，知识库绑定失败了'),
+        );
+      },
+    });
+  }, [
+    catalogReady,
+    effectiveKnowledgeBaseId,
+    knowledgeBaseId,
+    setKnowledgeBaseId,
+  ]);
 
   useEffect(() => {
     if (!ui.error) return;
@@ -62,20 +106,12 @@ export default function ChatPage() {
 
   useEffect(() => {
     if (USE_MOCK) return;
-    let cancelled = false;
-    void fetchKnowledgeBases()
-      .then((items) => {
-        if (cancelled) return;
-        setKbOptions(items.map((kb) => ({ value: kb.id, label: kb.name })));
-      })
-      .catch((error: unknown) => {
-        if (cancelled) return;
-        antdMessage.error(userFacingApiMessage(error, '哎呀，知识库列表加载失败了'));
-      });
-    return () => {
-      cancelled = true;
-    };
-  }, []);
+    void loadCatalog().catch((error: unknown) => {
+      antdMessage.error(
+        userFacingApiMessage(error, '哎呀，知识库列表加载失败了'),
+      );
+    });
+  }, [loadCatalog]);
 
   const handleModelChange = useCallback(
     (next: string) => {
@@ -86,16 +122,18 @@ export default function ChatPage() {
 
   const handleKnowledgeBaseChange = useCallback(
     (next: string | null) => {
-      setKnowledgeBaseId(next);
-      const id = useChatStore.getState().conversationId;
-      if (!id || USE_MOCK) return;
-      void patchConversation(id, { knowledgeBaseId: next }).catch(
-        (error: unknown) => {
+      const prev = useChatStore.getState().knowledgeBaseId;
+      bindKnowledgeBaseChange(next, prev, {
+        conversationId: useChatStore.getState().conversationId,
+        useMock: USE_MOCK,
+        setKnowledgeBaseId,
+        patchConversation,
+        onPatchError: (error: unknown) => {
           antdMessage.error(
             userFacingApiMessage(error, '哎呀，知识库绑定失败了'),
           );
         },
-      );
+      });
     },
     [setKnowledgeBaseId],
   );
@@ -113,7 +151,9 @@ export default function ChatPage() {
   const handleSelectConversation = useCallback(
     (id: string, title: string, nextKbId: string | null) => {
       setMainView(MainView.Chat);
-      useChatStore.getState().setKnowledgeBaseId(nextKbId);
+      useChatStore
+        .getState()
+        .setKnowledgeBaseId(resolveKnowledgeBaseFromCatalog(nextKbId));
       void switchConversation(id, title);
     },
     [switchConversation],
@@ -183,7 +223,7 @@ export default function ChatPage() {
         title={chrome.headerTitle ?? conversationHeading}
         model={model}
         onModelChange={handleModelChange}
-        knowledgeBaseId={knowledgeBaseId}
+        knowledgeBaseId={effectiveKnowledgeBaseId}
         knowledgeBaseOptions={kbOptions}
         onKnowledgeBaseChange={handleKnowledgeBaseChange}
         knowledgeBaseDisabled={isGenerating}
@@ -193,7 +233,9 @@ export default function ChatPage() {
         showMockBadge={USE_MOCK}
         showChatActions={chrome.showChatActions}
       />
-      {!USE_MOCK && <ConnectionBanner status={ui.connectionStatus} />}
+      {!USE_MOCK && (
+        <ConnectionBanner reconnectAttempt={ui.wsReconnectAttempt} />
+      )}
       <div className={styles.body}>
         <Sidebar
           open={sidebarOpen}

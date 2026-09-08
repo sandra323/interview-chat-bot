@@ -22,6 +22,9 @@ export const DOCUMENT_FILE_ACCEPT =
 /** 兼容层与迁移使用的默认知识库名称。 */
 export const DEFAULT_KNOWLEDGE_BASE_NAME = '默认资料库';
 
+/** 知识库名称 trim 后长度上限（与后端校验对齐）。 */
+export const KB_NAME_MAX = 100;
+
 export interface KnowledgeBase {
   id: string;
   name: string;

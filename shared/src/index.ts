@@ -31,6 +31,7 @@ export {
   DOCUMENT_PAGE_SIZE,
   DOCUMENT_FILE_ACCEPT,
   DEFAULT_KNOWLEDGE_BASE_NAME,
+  KB_NAME_MAX,
 } from './types/document.js';
 export {
   DEFAULT_LLM_TIMEOUT_MS,

@@ -46,6 +46,8 @@ export interface ServerEnv {
   databaseUrl: string;
   /** OpenAI embedding（环境变量 OPENAI_API_KEY）。缺省不阻断启动。 */
   openaiApiKey: string;
+  /** 可选 OpenAI 兼容中转（OPENAI_BASE_URL）。 */
+  openaiBaseUrl: string;
   openaiEmbeddingModel: string;
   openaiEmbeddingModelVersion: string;
   /** Voyage rerank（环境变量 VOYAGE_API_KEY）。缺省不阻断启动，检索退回 RRF。 */
@@ -82,6 +84,7 @@ export function readServerEnv(): ServerEnv {
     authSessionTtlHours: ttlParsed,
     databaseUrl: process.env.DATABASE_URL?.trim() ?? '',
     openaiApiKey: process.env.OPENAI_API_KEY?.trim() ?? '',
+    openaiBaseUrl: process.env.OPENAI_BASE_URL?.trim() ?? '',
     openaiEmbeddingModel:
       process.env.OPENAI_EMBEDDING_MODEL?.trim() || 'text-embedding-3-small',
     openaiEmbeddingModelVersion:

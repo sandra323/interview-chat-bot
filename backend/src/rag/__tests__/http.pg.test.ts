@@ -23,6 +23,8 @@ import { loadEnvFiles, type ServerEnv } from '../../config/env.js';
 import { getPool, initPg, resetPoolForTests } from '../pg.js';
 import {
   createKnowledgeBase,
+  deleteForOwner,
+  findByNameForOwner,
   getOrCreateDefaultForOwner,
 } from '../knowledgeBaseStore.js';
 import { deleteByIdForOwner, getByIdForOwner, insert } from '../pgDocumentStore.js';
@@ -35,6 +37,7 @@ import {
 } from '../embedder.js';
 import { sha256Hex } from '../contentHash.js';
 import { migrateDocumentsFromSqlite } from '../migrateDocuments.js';
+import { isLegacySqliteDocumentHandled } from '../sqliteMigrationLog.js';
 import {
   ensureTestDatabase,
   isSafeTestDatabaseUrl,
@@ -211,6 +214,44 @@ describe.skipIf(!testDatabaseUrl)('KB + documents HTTP with PostgreSQL', () => {
       `/api/knowledge-bases/${kb.id}`,
     );
     expect(deleted.status).toBe(200);
+  });
+
+  it('rejects duplicate knowledge base names for the same owner', async () => {
+    const token = await login();
+    const first = await authJson(token, 'POST', '/api/knowledge-bases', {
+      name: '项目库',
+    });
+    expect(first.status).toBe(200);
+    const firstId = (first.body.data as { id: string }).id;
+
+    const dup = await authJson(token, 'POST', '/api/knowledge-bases', {
+      name: ' 项目库 ',
+    });
+    expect(dup.status).toBe(400);
+    expect(String(dup.body.msg)).toContain('同名知识库');
+
+    const other = await authJson(token, 'POST', '/api/knowledge-bases', {
+      name: '另一库',
+    });
+    expect(other.status).toBe(200);
+    const otherId = (other.body.data as { id: string }).id;
+
+    const renamed = await authJson(
+      token,
+      'PATCH',
+      `/api/knowledge-bases/${otherId}`,
+      { name: '项目库' },
+    );
+    expect(renamed.status).toBe(400);
+    expect(String(renamed.body.msg)).toContain('同名知识库');
+
+    const keepOwnName = await authJson(
+      token,
+      'PATCH',
+      `/api/knowledge-bases/${firstId}`,
+      { name: '项目库' },
+    );
+    expect(keepOwnName.status).toBe(200);
   });
 
   it('uploads to a KB, parses to ready, writes content_hash, and rejects duplicates', async () => {
@@ -535,6 +576,8 @@ describe.skipIf(!testDatabaseUrl)('KB + documents HTTP with PostgreSQL', () => {
     );
     db.close();
 
+    getFileStorage().write('migrated-owner/old.txt', Buffer.from('test'));
+
     const first = await migrateDocumentsFromSqlite(sqlitePath);
     expect(first.skipped).toBe(false);
     expect(first.documents).toBe(1);
@@ -544,6 +587,112 @@ describe.skipIf(!testDatabaseUrl)('KB + documents HTTP with PostgreSQL', () => {
     const second = await migrateDocumentsFromSqlite(sqlitePath);
     expect(second.skipped).toBe(false);
     expect(second.documents).toBe(0);
+  });
+
+  it('does not recreate the default knowledge base when SQLite rows were already handled', async () => {
+    const sqlitePath = path.join(
+      os.tmpdir(),
+      `rag-migrate-${crypto.randomUUID()}.db`,
+    );
+    sqlitePaths.push(sqlitePath);
+    const db = new Database(sqlitePath);
+    db.exec(`
+      CREATE TABLE documents (
+        id TEXT PRIMARY KEY,
+        owner_username TEXT NOT NULL,
+        filename TEXT NOT NULL,
+        mime_type TEXT NOT NULL,
+        size_bytes INTEGER NOT NULL,
+        storage_path TEXT NOT NULL,
+        status TEXT NOT NULL,
+        progress INTEGER NOT NULL DEFAULT 0,
+        error TEXT,
+        created_at INTEGER NOT NULL,
+        source_relative_path TEXT
+      )
+    `);
+    const docId = crypto.randomUUID();
+    db.prepare(
+      `INSERT INTO documents VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+    ).run(
+      docId,
+      'migrated-owner',
+      'old.txt',
+      'text/plain',
+      4,
+      'migrated-owner/old.txt',
+      'ready',
+      100,
+      null,
+      Date.now(),
+      null,
+    );
+    db.close();
+
+    getFileStorage().write('migrated-owner/old.txt', Buffer.from('test'));
+
+    const first = await migrateDocumentsFromSqlite(sqlitePath);
+    expect(first.documents).toBe(1);
+    const kb = await findByNameForOwner(
+      'migrated-owner',
+      DEFAULT_KNOWLEDGE_BASE_NAME,
+    );
+    expect(kb).not.toBeNull();
+    await deleteForOwner(kb!.id, 'migrated-owner');
+
+    const second = await migrateDocumentsFromSqlite(sqlitePath);
+    expect(second.documents).toBe(0);
+    expect(
+      await findByNameForOwner('migrated-owner', DEFAULT_KNOWLEDGE_BASE_NAME),
+    ).toBeNull();
+  });
+
+  it('skips orphan SQLite rows without recreating the default knowledge base', async () => {
+    const sqlitePath = path.join(
+      os.tmpdir(),
+      `rag-migrate-${crypto.randomUUID()}.db`,
+    );
+    sqlitePaths.push(sqlitePath);
+    const db = new Database(sqlitePath);
+    db.exec(`
+      CREATE TABLE documents (
+        id TEXT PRIMARY KEY,
+        owner_username TEXT NOT NULL,
+        filename TEXT NOT NULL,
+        mime_type TEXT NOT NULL,
+        size_bytes INTEGER NOT NULL,
+        storage_path TEXT NOT NULL,
+        status TEXT NOT NULL,
+        progress INTEGER NOT NULL DEFAULT 0,
+        error TEXT,
+        created_at INTEGER NOT NULL,
+        source_relative_path TEXT
+      )
+    `);
+    const docId = crypto.randomUUID();
+    db.prepare(
+      `INSERT INTO documents VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+    ).run(
+      docId,
+      'orphan-owner',
+      'old.txt',
+      'text/plain',
+      4,
+      'orphan-owner/old.txt',
+      'ready',
+      100,
+      null,
+      Date.now(),
+      null,
+    );
+    db.close();
+
+    const result = await migrateDocumentsFromSqlite(sqlitePath);
+    expect(result.documents).toBe(0);
+    expect(
+      await findByNameForOwner('orphan-owner', DEFAULT_KNOWLEDGE_BASE_NAME),
+    ).toBeNull();
+    expect(await isLegacySqliteDocumentHandled(docId)).toBe(true);
   });
 
   it('re-enqueues pending documents after a simulated restart', async () => {

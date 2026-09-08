@@ -39,6 +39,21 @@ function jobKey(job: Pick<IngestJob, 'documentId' | 'ownerUsername'>): string {
   return `${job.ownerUsername}:${job.documentId}`;
 }
 
+function extractIngestCause(cause: unknown): Record<string, unknown> {
+  if (typeof cause !== 'object' || cause === null) {
+    return {};
+  }
+  const record = cause as { status?: unknown; code?: unknown; message?: unknown };
+  return {
+    causeStatus: record.status,
+    causeCode: record.code,
+    causeMessage:
+      typeof record.message === 'string'
+        ? record.message.slice(0, 200)
+        : undefined,
+  };
+}
+
 function notifyIdle(): void {
   if (running > 0 || queue.length > 0) {
     return;
@@ -93,9 +108,15 @@ async function markFailed(
   if (!current) {
     return;
   }
+  const detail =
+    error instanceof Error && error.cause
+      ? extractIngestCause(error.cause)
+      : undefined;
   logger.warn(logMessage, {
     documentId: job.documentId,
     error: error instanceof Error ? error.message : 'Unknown error',
+    userMessage: userMessageForIngestError(error),
+    ...detail,
   });
   try {
     await updateStatus(job.documentId, job.ownerUsername, {
